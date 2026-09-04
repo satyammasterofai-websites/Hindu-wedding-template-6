@@ -108,7 +108,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-50px" }}
                   transition={{ duration: 0.8 }}
-                  className="w-full relative aspect-[9/16] md:aspect-[16/9] rounded-[2rem] overflow-hidden shadow-2xl border-[3px] border-[#FAF5EA] ring-1 ring-[#C9A15A]/30 bg-stone-900 group"
+                  className="w-full relative aspect-[9/16] sm:aspect-[16/9] rounded-[2rem] overflow-hidden shadow-2xl border-[3px] border-[#FAF5EA] ring-1 ring-[#C9A15A]/30 bg-stone-900 group"
                 >
                   {/* Background Image */}
                   <img
@@ -121,10 +121,10 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                     }}
                   />
                   {/* Dark Overlay for readability */}
-                  <div className="absolute inset-0 bg-black/30 md:bg-gradient-to-r md:from-black/60 md:via-black/40 md:to-transparent pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-black/30 sm:bg-gradient-to-r sm:from-black/60 sm:via-black/40 sm:to-transparent pointer-events-none"></div>
                   
                   {/* Text Content */}
-                  <div className="absolute top-4 left-0 right-0 flex flex-col items-center text-center px-6 z-10 md:top-0 md:bottom-0 md:w-1/2 md:justify-center md:items-start md:text-left md:pl-16">
+                  <div className="absolute top-4 left-0 right-0 flex flex-col items-center text-center px-6 z-10 sm:top-0 sm:bottom-0 sm:w-1/2 sm:justify-center sm:items-start sm:text-left sm:pl-12 md:pl-16">
                     <h3 className="text-4xl md:text-5xl font-['Great_Vibes',cursive] text-[#FAF5EA] mb-2 drop-shadow-md">
                       {event.heading}
                     </h3>
@@ -171,7 +171,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                         initial={{ x: "-50%" }}
                         animate={{ y: [-3, 3, -3], x: "-50%" }}
                         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute z-20 pointer-events-none origin-bottom md:hidden"
+                        className="absolute z-20 pointer-events-none origin-bottom sm:hidden"
                         style={{
                           width: `${event.caricatureSize ?? 50}%`,
                           bottom: `${event.caricatureBottom ?? 0}%`,
@@ -185,7 +185,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                       <motion.div
                         animate={{ y: [-3, 3, -3] }}
                         transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-                        className="absolute z-20 pointer-events-none origin-bottom hidden md:flex items-end justify-center right-8 bottom-0 w-1/2 h-[95%]"
+                        className="absolute z-20 pointer-events-none origin-bottom hidden sm:flex items-end justify-center right-4 md:right-8 bottom-0 w-1/2 h-[95%]"
                       >
                         <img src={event.caricatureUrl} alt="Caricature overlay" className="w-auto h-full object-contain drop-shadow-2xl object-bottom" />
                       </motion.div>

@@ -39,6 +39,7 @@ export interface ECardSettings {
   embeddedImageWidth: number;
   textElements: TextElement[];
   heroImageUrl: string;
+  ogImageUrl?: string;
   ganeshaIconUrl?: string;
   musicUrl: string;
   targetDate: string;
@@ -114,6 +115,7 @@ export const defaultSettings: ECardSettings = {
     }
   ],
   heroImageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=2069&auto=format&fit=crop',
+  ogImageUrl: 'https://images.unsplash.com/photo-1511285560929-80b456fea0bc?q=80&w=2069&auto=format&fit=crop',
   musicUrl: '',
   targetDate: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   eventDetails: [

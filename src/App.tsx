@@ -186,6 +186,7 @@ export default function App() {
           
           const settingsToSave = { ...settings };
           settingsToSave.heroImageUrl = await prepareUrl(settingsToSave.heroImageUrl, 'hero');
+          if (settingsToSave.ogImageUrl) settingsToSave.ogImageUrl = await prepareUrl(settingsToSave.ogImageUrl, 'og');
           settingsToSave.embeddedImageUrl = await prepareUrl(settingsToSave.embeddedImageUrl, 'embedded');
           settingsToSave.musicUrl = await prepareUrl(settingsToSave.musicUrl, 'music');
           if (settingsToSave.ganeshaIconUrl) settingsToSave.ganeshaIconUrl = await prepareUrl(settingsToSave.ganeshaIconUrl, 'ganesha');
@@ -238,6 +239,7 @@ export default function App() {
       
       const settingsToSave = { ...settings };
       settingsToSave.heroImageUrl = await prepareUrl(settingsToSave.heroImageUrl, 'hero');
+      if (settingsToSave.ogImageUrl) settingsToSave.ogImageUrl = await prepareUrl(settingsToSave.ogImageUrl, 'og');
       settingsToSave.embeddedImageUrl = await prepareUrl(settingsToSave.embeddedImageUrl, 'embedded');
       settingsToSave.musicUrl = await prepareUrl(settingsToSave.musicUrl, 'music');
       
