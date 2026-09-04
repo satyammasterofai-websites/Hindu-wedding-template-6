@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
-const CHUNK_SIZE = 900000; // 900KB per chunk
+const CHUNK_SIZE = 500000; // 900KB per chunk
 
 export async function saveLargeFile(id: string, dataUrl: string): Promise<string> {
   const chunks = Math.ceil(dataUrl.length / CHUNK_SIZE);

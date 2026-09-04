@@ -21,19 +21,18 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [settings, setSettings] = useState<ECardSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement>(null);
   
   const [cardId, setCardId] = useState<string>(() => {
     return new URLSearchParams(window.location.search).get('id') || 'main-settings';
   });
 
-  const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
-
   // Load settings from Firestore or LocalStorage fallback
   useEffect(() => {
     const loadSettings = async () => {
+      let finalSettings = defaultSettings;
+      
       try {
         const docRef = doc(db, 'ecard', cardId);
         let dataToUse: any = null;
@@ -59,6 +58,10 @@ export default function App() {
 
         // Resolve chunked files regardless of whether it's local or firestore
         if (dataToUse) {
+          if (dataToUse.openingBgColor === '#fce7f3') {
+            dataToUse.openingBgColor = '#DCE8D3';
+          }
+
           const resolveUrl = async (url: string) => {
             if (url && typeof url === 'string' && url.startsWith('ecard-file://')) {
               const dataUrl = await loadLargeFile(url);
@@ -75,11 +78,13 @@ export default function App() {
           if (dataToUse.heroImageUrl) dataToUse.heroImageUrl = await resolveUrl(dataToUse.heroImageUrl);
           if (dataToUse.embeddedImageUrl) dataToUse.embeddedImageUrl = await resolveUrl(dataToUse.embeddedImageUrl);
           if (dataToUse.musicUrl) dataToUse.musicUrl = await resolveUrl(dataToUse.musicUrl);
+          if (dataToUse.ganeshaIconUrl) dataToUse.ganeshaIconUrl = await resolveUrl(dataToUse.ganeshaIconUrl);
           
           if (dataToUse.eventDetails && Array.isArray(dataToUse.eventDetails)) {
             dataToUse.eventDetails = await Promise.all(dataToUse.eventDetails.map(async (e: any) => ({
               ...e,
-              imageUrl: await resolveUrl(e.imageUrl)
+              imageUrl: await resolveUrl(e.imageUrl),
+              caricatureUrl: e.caricatureUrl ? await resolveUrl(e.caricatureUrl) : undefined
             })));
           }
 
@@ -97,6 +102,7 @@ export default function App() {
               textAlign: dataToUse.openingTextAlign ?? 'center',
             }];
           }
+          finalSettings = merged;
           setSettings(merged);
         } else {
           await setDoc(docRef, defaultSettings);
@@ -121,14 +127,38 @@ export default function App() {
                 textAlign: data.openingTextAlign ?? 'center',
               }];
             }
+            finalSettings = merged;
             setSettings(merged);
           }
         } catch (e) {
           console.warn('Error reading local storage during fallback:', e);
         }
-      } finally {
-        setIsLoading(false);
       }
+
+      // Preload critical images to prevent lag
+      try {
+        const imagesToPreload = [
+          finalSettings.embeddedImageUrl,
+          finalSettings.heroImageUrl,
+          finalSettings.ganeshaIconUrl,
+          ...(finalSettings.eventDetails?.map((e: any) => e.imageUrl) || [])
+        ].filter(Boolean) as string[];
+
+        const preloadPromises = imagesToPreload.map((url) => {
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = resolve;
+            img.onerror = resolve; // Resolve even on error so we don't block
+            img.src = url;
+          });
+        });
+
+        await Promise.all(preloadPromises);
+      } catch (e) {
+        console.warn('Error during image preloading', e);
+      }
+
+      setIsLoading(false);
     };
     
     loadSettings();
@@ -158,11 +188,13 @@ export default function App() {
           settingsToSave.heroImageUrl = await prepareUrl(settingsToSave.heroImageUrl, 'hero');
           settingsToSave.embeddedImageUrl = await prepareUrl(settingsToSave.embeddedImageUrl, 'embedded');
           settingsToSave.musicUrl = await prepareUrl(settingsToSave.musicUrl, 'music');
+          if (settingsToSave.ganeshaIconUrl) settingsToSave.ganeshaIconUrl = await prepareUrl(settingsToSave.ganeshaIconUrl, 'ganesha');
           
           if (settingsToSave.eventDetails && Array.isArray(settingsToSave.eventDetails)) {
              settingsToSave.eventDetails = await Promise.all(settingsToSave.eventDetails.map(async (e, i) => ({
                 ...e,
-                imageUrl: await prepareUrl(e.imageUrl, `event-${e.id || i}`)
+                imageUrl: await prepareUrl(e.imageUrl, `event-${e.id || i}`),
+                caricatureUrl: e.caricatureUrl ? await prepareUrl(e.caricatureUrl, `event-${e.id || i}-caricature`) : undefined
              })));
           }
 
@@ -183,6 +215,7 @@ export default function App() {
   }, [settings, isLoading, cardId]);
 
   const handleSaveAndExit = async () => {
+    setIsExiting(true);
     // Force a save to local storage immediately when exiting admin panel
     try {
       localStorage.setItem('wedding-ecard-settings', JSON.stringify(settings));
@@ -211,7 +244,8 @@ export default function App() {
       if (settingsToSave.eventDetails && Array.isArray(settingsToSave.eventDetails)) {
          settingsToSave.eventDetails = await Promise.all(settingsToSave.eventDetails.map(async (e, i) => ({
             ...e,
-            imageUrl: await prepareUrl(e.imageUrl, `event-${e.id || i}`)
+            imageUrl: await prepareUrl(e.imageUrl, `event-${e.id || i}`),
+            caricatureUrl: e.caricatureUrl ? await prepareUrl(e.caricatureUrl, `event-${e.id || i}-caricature`) : undefined
          })));
       }
 
@@ -220,13 +254,28 @@ export default function App() {
       console.warn('Error saving settings to Firestore on exit:', error.message);
     }
     setCurrentView('opening');
+    setIsExiting(false);
   };
 
   if (isLoading) {
     return (
-      <div className="w-screen h-screen flex flex-col items-center justify-center bg-stone-900 text-stone-300 gap-4">
-        <Loader2 className="w-8 h-8 animate-spin" />
-        <p className="font-serif animate-pulse">Loading Your E-Card...</p>
+      <div 
+        className="w-screen h-screen flex flex-col items-center justify-center gap-8 relative overflow-hidden"
+        style={{ backgroundColor: settings.openingBgColor || '#fce7f3', color: '#831843' }}
+      >
+        {/* Subtle expanding rings for premium feel */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 border-[1px] border-current opacity-10 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 border-[1px] border-current opacity-5 rounded-full animate-ping" style={{ animationDuration: '3s', animationDelay: '1s' }} />
+        
+        {/* Elegant minimal spinner */}
+        <div className="relative z-10 w-10 h-10 border-[2px] border-current/20 border-t-current rounded-full animate-spin" />
+        
+        <div className="relative z-10 flex flex-col items-center gap-2">
+          <p className="font-['Playfair_Display',serif] tracking-[0.2em] uppercase text-xs md:text-sm font-medium animate-pulse">
+            Loading Your Invitation
+          </p>
+          <div className="w-12 h-[1px] bg-current opacity-30 mt-2" />
+        </div>
       </div>
     );
   }
@@ -246,23 +295,11 @@ export default function App() {
   };
 
   const handleOpenAdmin = () => {
-    if (settings.paymentPending) {
-      setShowPasswordPrompt(true);
-    } else {
+    const pwd = window.prompt("Enter admin password:");
+    if (pwd === "6396") {
       setCurrentView('admin');
-    }
-  };
-
-  const handlePasswordSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const correctPassword = settings.adminPassword || 'admin123';
-    if (passwordInput === correctPassword) {
-      setShowPasswordPrompt(false);
-      setPasswordInput('');
-      setPasswordError(false);
-      setCurrentView('admin');
-    } else {
-      setPasswordError(true);
+    } else if (pwd !== null) {
+      alert("Incorrect password");
     }
   };
 
@@ -278,52 +315,6 @@ export default function App() {
         >
           <Settings size={24} />
         </button>
-
-        {showPasswordPrompt && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/20 backdrop-blur-sm">
-            <form 
-              onSubmit={handlePasswordSubmit}
-              className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm border border-stone-100 flex flex-col gap-4 animate-in fade-in zoom-in duration-200"
-            >
-              <h2 className="text-lg font-serif font-medium text-stone-800">Admin Login</h2>
-              <div className="space-y-1">
-                <input
-                  type="password"
-                  value={passwordInput}
-                  onChange={(e) => {
-                    setPasswordInput(e.target.value);
-                    setPasswordError(false);
-                  }}
-                  placeholder="Enter admin password"
-                  autoFocus
-                  className="w-full px-3 py-2 border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-900 focus:border-stone-900 text-stone-800"
-                />
-                {passwordError && (
-                  <p className="text-xs text-red-500 font-medium">Incorrect password</p>
-                )}
-              </div>
-              <div className="flex justify-end gap-2 mt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPasswordPrompt(false);
-                    setPasswordInput('');
-                    setPasswordError(false);
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-50 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-stone-900 hover:bg-stone-800 rounded-lg transition-colors shadow-sm"
-                >
-                  Unlock
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
       </div>
     );
   }
@@ -340,6 +331,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings} 
           onExit={handleSaveAndExit} 
+          isExiting={isExiting}
         />
       ) : (
         <>

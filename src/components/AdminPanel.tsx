@@ -8,6 +8,7 @@ interface Props {
   settings: ECardSettings;
   setSettings: React.Dispatch<React.SetStateAction<ECardSettings>>;
   onExit: () => void;
+  isExiting?: boolean;
 }
 
 const ImageUploadField = ({ 
@@ -54,9 +55,14 @@ const ImageUploadField = ({
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
+        ctx.clearRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        // Compress image to JPEG with 0.7 quality
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+        
+        // Preserve transparency for PNGs
+        const outputFormat = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        const quality = file.type === 'image/png' ? undefined : 0.6;
+        const dataUrl = canvas.toDataURL(outputFormat, quality);
+        
         onChange(dataUrl);
       }
       URL.revokeObjectURL(objectUrl);
@@ -88,13 +94,9 @@ const ImageUploadField = ({
              referrerPolicy="no-referrer" 
             
             onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              e.currentTarget.parentElement?.classList.add('bg-stone-200');
+              (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/800x800/cccccc/666666?text=Invalid+Link';
             }}
-            onLoad={(e) => {
-              e.currentTarget.style.display = 'block';
-              e.currentTarget.parentElement?.classList.remove('bg-stone-200');
-            }}
+            
           />
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
             <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded-md backdrop-blur-sm">Current Image</span>
@@ -142,7 +144,18 @@ const ImageUploadField = ({
         <input
           type="text"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            let val = e.target.value;
+            const gdriveMatch = val.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
+            if (gdriveMatch) {
+              val = `https://drive.google.com/uc?export=view&id=${gdriveMatch[1]}`;
+            }
+            const dropboxMatch = val.match(/dropbox\.com\/s\/([^\/]+\/[^?]+)/);
+            if (dropboxMatch) {
+              val = `https://dl.dropboxusercontent.com/s/${dropboxMatch[1]}`;
+            }
+            onChange(val);
+          }}
           className="w-full pl-9 pr-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 transition-colors"
           placeholder="https://..."
         />
@@ -235,7 +248,18 @@ const AudioUploadField = ({
         <input
           type="text"
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            let val = e.target.value;
+            const gdriveMatch = val.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
+            if (gdriveMatch) {
+              val = `https://drive.google.com/uc?export=view&id=${gdriveMatch[1]}`;
+            }
+            const dropboxMatch = val.match(/dropbox\.com\/s\/([^\/]+\/[^?]+)/);
+            if (dropboxMatch) {
+              val = `https://dl.dropboxusercontent.com/s/${dropboxMatch[1]}`;
+            }
+            onChange(val);
+          }}
           className="w-full pl-9 pr-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 transition-colors"
           placeholder="https://..."
         />
@@ -244,7 +268,7 @@ const AudioUploadField = ({
   );
 };
 
-export function AdminPanel({ settings, setSettings, onExit }: Props) {
+export function AdminPanel({ settings, setSettings, onExit, isExiting }: Props) {
   const [activeTab, setActiveTab] = useState<'images' | 'layout' | 'text' | 'events' | 'content' | 'advanced'>('images');
   const [previewView, setPreviewView] = useState<'opening' | 'hero'>('opening');
   const [activeTextId, setActiveTextId] = useState<string | null>(
@@ -302,7 +326,7 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
     setSettings(prev => ({ ...prev, textElements: (prev.textElements || []).filter(el => el.id !== id) }));
   };
 
-  const handleEventChange = (id: string, field: 'heading' | 'imageUrl' | 'directionUrl', value: string) => {
+  const handleEventChange = (id: string, field: string, value: any) => {
     setSettings(prev => ({
       ...prev,
       eventDetails: (prev.eventDetails || []).map(el => el.id === id ? { ...el, [field]: value } : el)
@@ -344,9 +368,17 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
           </h1>
           <button
             onClick={onExit}
-            className="text-sm px-4 py-1.5 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors shadow-sm font-medium"
+            disabled={isExiting}
+            className="text-sm px-4 py-1.5 bg-stone-900 text-white rounded-full hover:bg-stone-800 transition-colors shadow-sm font-medium flex items-center gap-2 disabled:opacity-50"
           >
-            Save & Exit
+            {isExiting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save & Exit'
+            )}
           </button>
         </div>
 
@@ -531,39 +563,6 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                       </div>
                     </div>
 
-                    <div className="space-y-5 bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
-                      <h3 className="text-sm font-medium text-stone-800 mb-2">Positioning</h3>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider">X Position (Left %)</label>
-                          <span className="text-xs font-medium px-2 py-0.5 bg-stone-100 rounded text-stone-600">{activeEl.left}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={activeEl.left}
-                          onChange={(e) => handleTextChange(activeEl.id, 'left', parseInt(e.target.value))}
-                          className="w-full accent-stone-900 h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="block text-xs font-medium text-stone-500 uppercase tracking-wider">Y Position (Top %)</label>
-                          <span className="text-xs font-medium px-2 py-0.5 bg-stone-100 rounded text-stone-600">{activeEl.top}%</span>
-                        </div>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={activeEl.top}
-                          onChange={(e) => handleTextChange(activeEl.id, 'top', parseInt(e.target.value))}
-                          className="w-full accent-stone-900 h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                        />
-                      </div>
-                    </div>
                   </div>
                 );
               })()}
@@ -594,7 +593,7 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
 
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">
-                  Events Section Heading Color
+                  Events Section Details Color
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -637,7 +636,7 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
 
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">
-                  Events Image Heading Color
+                  Events Image Details Color
                 </label>
                 <div className="flex items-center gap-3">
                   <input
@@ -706,7 +705,95 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                       label="Event Image"
                       value={activeEl.imageUrl}
                       onChange={(url) => handleEventChange(activeEl.id, 'imageUrl', url)}
-                    />
+                    /><div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-stone-800">Description</label>
+                        <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer">
+                          <input type="checkbox" checked={activeEl.showDescription !== false} onChange={(e) => handleEventChange(activeEl.id, 'showDescription', e.target.checked)} className="rounded text-stone-900 focus:ring-stone-900 border-stone-300" /> Show
+                        </label>
+                      </div>
+                      <textarea
+                        value={activeEl.description || ''}
+                        onChange={(e) => handleEventChange(activeEl.id, 'description', e.target.value)}
+                        className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-sm font-medium text-stone-800">Date</label>
+                          <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer">
+                            <input type="checkbox" checked={activeEl.showDate !== false} onChange={(e) => handleEventChange(activeEl.id, 'showDate', e.target.checked)} className="rounded text-stone-900 focus:ring-stone-900 border-stone-300" /> Show
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          value={activeEl.date || ''}
+                          onChange={(e) => handleEventChange(activeEl.id, 'date', e.target.value)}
+                          className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600"
+                        />
+                      </div>
+                      <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="block text-sm font-medium text-stone-800">Time</label>
+                          <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer">
+                            <input type="checkbox" checked={activeEl.showTime !== false} onChange={(e) => handleEventChange(activeEl.id, 'showTime', e.target.checked)} className="rounded text-stone-900 focus:ring-stone-900 border-stone-300" /> Show
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          value={activeEl.time || ''}
+                          onChange={(e) => handleEventChange(activeEl.id, 'time', e.target.value)}
+                          className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-stone-800">Venue</label>
+                        <label className="flex items-center gap-2 text-xs text-stone-500 cursor-pointer">
+                          <input type="checkbox" checked={activeEl.showVenue !== false} onChange={(e) => handleEventChange(activeEl.id, 'showVenue', e.target.checked)} className="rounded text-stone-900 focus:ring-stone-900 border-stone-300" /> Show
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        value={activeEl.venue || ''}
+                        onChange={(e) => handleEventChange(activeEl.id, 'venue', e.target.value)}
+                        className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600"
+                      />
+                    </div>
+                    <div className="space-y-4 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                      <div className="flex justify-between items-center border-b border-stone-100 pb-2">
+                        <label className="block text-sm font-medium text-stone-800">Caricature Overlay</label>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" checked={activeEl.showCaricature || false} onChange={(e) => handleEventChange(activeEl.id, 'showCaricature', e.target.checked)} className="sr-only peer" />
+                          <div className="w-9 h-5 bg-stone-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-stone-900"></div>
+                        </label>
+                      </div>
+                      
+                      {activeEl.showCaricature && (
+                        <>
+                          <ImageUploadField
+                            label="Upload Caricature (Transparent PNG)"
+                            value={activeEl.caricatureUrl || ''}
+                            onChange={(url) => handleEventChange(activeEl.id, 'caricatureUrl', url)}
+                          />
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-stone-700">Size (Width %)</label>
+                            <input type="range" min="10" max="150" value={activeEl.caricatureSize ?? 50} onChange={(e) => handleEventChange(activeEl.id, 'caricatureSize', parseInt(e.target.value))} className="w-full accent-stone-900" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-stone-700">Vertical Position (Bottom %)</label>
+                            <input type="range" min="-50" max="100" value={activeEl.caricatureBottom ?? 0} onChange={(e) => handleEventChange(activeEl.id, 'caricatureBottom', parseInt(e.target.value))} className="w-full accent-stone-900" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-xs font-medium text-stone-700">Horizontal Position (Left %, 50=Center)</label>
+                            <input type="range" min="-50" max="150" value={activeEl.caricatureLeft ?? 50} onChange={(e) => handleEventChange(activeEl.id, 'caricatureLeft', parseInt(e.target.value))} className="w-full accent-stone-900" />
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                       <label className="block text-sm font-medium text-stone-800">
                         Direction URL (Map Link)
@@ -775,57 +862,68 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
             </div>
           ) : activeTab === 'content' ? (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Family Invite Section</h3>
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Hero Section Content</h3>
+              
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Top Intro Text</label>
+                <textarea name="heroTopText" value={settings.heroTopText || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={2}></textarea>
+              </div>
+
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Groom Name</label>
+                <input type="text" name="heroGroomName" value={settings.heroGroomName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+                <label className="block text-sm font-medium text-stone-800 mt-2">Groom Parents Info</label>
+                <textarea name="heroGroomParents" value={settings.heroGroomParents || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={2}></textarea>
+              </div>
+
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Middle Text (e.g. 'with')</label>
+                <input type="text" name="heroMiddleText" value={settings.heroMiddleText || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+              </div>
+
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Bride Name</label>
+                <input type="text" name="heroBrideName" value={settings.heroBrideName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+                <label className="block text-sm font-medium text-stone-800 mt-2">Bride Parents Info</label>
+                <textarea name="heroBrideParents" value={settings.heroBrideParents || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={2}></textarea>
+              </div>
+
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Invitation Message Section</h3>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800">Heading</label>
+                <input type="text" name="invitationMessageHeading" value={settings.invitationMessageHeading || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+              </div>
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Body</label>
+                <textarea name="invitationMessageBody" value={settings.invitationMessageBody || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={3}></textarea>
+              </div>
+
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2 mt-8">Family Invite Section</h3>
+              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
+                <label className="block text-sm font-medium text-stone-800">Top Heading</label>
                 <input type="text" name="familyInviteHeading" value={settings.familyInviteHeading || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Sub Heading 1</label>
+                <label className="block text-sm font-medium text-stone-800">Main Heading</label>
                 <input type="text" name="familyInviteSubHeading1" value={settings.familyInviteSubHeading1 || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Sub Heading 2</label>
+                <label className="block text-sm font-medium text-stone-800">Sub Heading</label>
                 <input type="text" name="familyInviteSubHeading2" value={settings.familyInviteSubHeading2 || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Sub Heading 3</label>
-                <input type="text" name="familyInviteSubHeading3" value={settings.familyInviteSubHeading3 || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+                <label className="block text-sm font-medium text-stone-800">Family Names</label>
+                <textarea name="familyNames" value={settings.familyNames || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={3}></textarea>
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">Background Color</label>
                 <div className="flex items-center gap-3">
-                  <input type="color" name="familyInviteBgColor" value={settings.familyInviteBgColor || '#ffffff'} onChange={handleChange} className="h-10 w-20 cursor-pointer rounded border border-stone-200" />
-                  <input type="text" name="familyInviteBgColor" value={settings.familyInviteBgColor || ''} onChange={handleChange} placeholder="e.g. transparent or #ffffff" className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase" />
+                  <input type="color" name="familyInviteBgColor" value={settings.familyInviteBgColor || '#DCE8D3'} onChange={handleChange} className="h-10 w-20 cursor-pointer rounded border border-stone-200" />
+                  <input type="text" name="familyInviteBgColor" value={settings.familyInviteBgColor || ''} onChange={handleChange} className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase" />
                 </div>
               </div>
-              
-              <h3 className="text-lg font-medium text-stone-800 border-b pb-2 mt-8">Contact Details Section</h3>
-              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Heading</label>
-                <input type="text" name="contactHeading" value={settings.contactHeading || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
-              </div>
-              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Name</label>
-                <input type="text" name="contactName" value={settings.contactName || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
-              </div>
-              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Phone</label>
-                <input type="text" name="contactPhone" value={settings.contactPhone || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
-              </div>
-              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Address</label>
-                <textarea name="contactAddress" value={settings.contactAddress || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" rows={3}></textarea>
-              </div>
-              <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">Background Color</label>
-                <div className="flex items-center gap-3">
-                  <input type="color" name="contactBgColor" value={settings.contactBgColor || '#ffffff'} onChange={handleChange} className="h-10 w-20 cursor-pointer rounded border border-stone-200" />
-                  <input type="text" name="contactBgColor" value={settings.contactBgColor || ''} onChange={handleChange} placeholder="e.g. transparent or #ffffff" className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase" />
-                </div>
-              </div>
-              
-              <h3 className="text-lg font-medium text-stone-800 border-b pb-2 mt-8">Footer Invite Section</h3>
+
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2 mt-8">Footer Section</h3>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800">Heading</label>
                 <input type="text" name="footerInviteHeading" value={settings.footerInviteHeading || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
@@ -839,14 +937,14 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                 <input type="text" name="footerInviteDate" value={settings.footerInviteDate || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
-                <label className="block text-sm font-medium text-stone-800">Families</label>
-                <input type="text" name="footerInviteFamilies" value={settings.footerInviteFamilies || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
+                <label className="block text-sm font-medium text-stone-800">Hashtag</label>
+                <input type="text" name="footerHashtag" value={settings.footerHashtag || ''} onChange={handleChange} className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600" />
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">Background Color</label>
                 <div className="flex items-center gap-3">
-                  <input type="color" name="footerInviteBgColor" value={settings.footerInviteBgColor || '#ffffff'} onChange={handleChange} className="h-10 w-20 cursor-pointer rounded border border-stone-200" />
-                  <input type="text" name="footerInviteBgColor" value={settings.footerInviteBgColor || ''} onChange={handleChange} placeholder="e.g. transparent or #ffffff" className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase" />
+                  <input type="color" name="footerInviteBgColor" value={settings.footerInviteBgColor || '#3B291F'} onChange={handleChange} className="h-10 w-20 cursor-pointer rounded border border-stone-200" />
+                  <input type="text" name="footerInviteBgColor" value={settings.footerInviteBgColor || ''} onChange={handleChange} className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase" />
                 </div>
               </div>
             </div>
@@ -881,17 +979,6 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                         rows={3}
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-800 mb-2">Admin Lock Password</label>
-                      <input
-                        type="text"
-                        value={settings.adminPassword || 'admin123'}
-                        onChange={(e) => setSettings(prev => ({ ...prev, adminPassword: e.target.value }))}
-                        className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 sm:text-sm text-stone-600"
-                        placeholder="admin123"
-                      />
-                      <p className="text-xs text-stone-500 mt-1">Required to access this panel when the website is locked.</p>
-                    </div>
                   </div>
                 )}
               </div>
@@ -906,14 +993,14 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                   <input
                     type="color"
                     name="openingBgColor"
-                    value={settings.openingBgColor || '#fce7f3'}
+                    value={settings.openingBgColor || '#DCE8D3'}
                     onChange={handleChange}
                     className="h-10 w-20 cursor-pointer rounded border border-stone-200"
                   />
                   <input
                     type="text"
                     name="openingBgColor"
-                    value={settings.openingBgColor || '#fce7f3'}
+                    value={settings.openingBgColor || '#DCE8D3'}
                     onChange={handleChange}
                     className="flex-1 px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 uppercase"
                   />
@@ -946,9 +1033,14 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                 onChange={handleImageChange('embeddedImageUrl')}
               />
               <ImageUploadField
-                label="Hero Section Image (Main Content)"
+                label="Hero Section Background Image (9:16)"
                 value={settings.heroImageUrl}
                 onChange={handleImageChange('heroImageUrl')}
+              />
+              <ImageUploadField
+                label="Ganesha Icon Image (Top Center)"
+                value={settings.ganeshaIconUrl || ''}
+                onChange={handleImageChange('ganeshaIconUrl')}
               />
               <div className="space-y-3 bg-white p-4 rounded-xl border border-stone-100 shadow-sm">
                 <label className="block text-sm font-medium text-stone-800 flex items-center gap-2">
@@ -985,38 +1077,6 @@ export function AdminPanel({ settings, setSettings, onExit }: Props) {
                   min="10"
                   max="100"
                   value={settings.embeddedImageWidth}
-                  onChange={handleChange}
-                  className="w-full accent-stone-900 h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <label className="block text-sm font-medium text-stone-700">X Position (Left %)</label>
-                  <span className="text-xs font-medium px-2 py-1 bg-stone-100 rounded text-stone-600">{settings.embeddedImageLeft}%</span>
-                </div>
-                <input
-                  type="range"
-                  name="embeddedImageLeft"
-                  min="0"
-                  max="100"
-                  value={settings.embeddedImageLeft}
-                  onChange={handleChange}
-                  className="w-full accent-stone-900 h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <label className="block text-sm font-medium text-stone-700">Y Position (Top %)</label>
-                  <span className="text-xs font-medium px-2 py-1 bg-stone-100 rounded text-stone-600">{settings.embeddedImageTop}%</span>
-                </div>
-                <input
-                  type="range"
-                  name="embeddedImageTop"
-                  min="0"
-                  max="100"
-                  value={settings.embeddedImageTop}
                   onChange={handleChange}
                   className="w-full accent-stone-900 h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer"
                 />
