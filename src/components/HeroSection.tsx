@@ -23,26 +23,21 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
       <div className="w-full flex flex-col items-center">
         {/* Hero Text Section (9:16 aspect ratio for mobile e-card) */}
         <div 
-          className="relative w-full aspect-[9/16] md:aspect-auto md:min-h-screen flex flex-col items-center justify-between px-6 py-12 md:py-20 text-center overflow-hidden shrink-0 bg-cover bg-center"
+          className="relative w-full aspect-[9/16] md:aspect-auto md:min-h-screen flex flex-col items-center justify-center px-6 py-12 md:py-20 text-center overflow-hidden shrink-0 bg-cover bg-center"
           style={{
             backgroundImage: settings.heroImageUrl ? `url(${settings.heroImageUrl})` : 'none',
           }}
         >
-          
-          {/* Area reserved for Ganesha Icon */}
-          <div className="h-16 md:h-28 lg:h-32 w-full flex-shrink-0 flex items-center justify-center z-10">
+          {/* Text Elements */}
+          <div className="flex flex-col items-center justify-center w-full z-10 text-[#7a103c]">
             {settings.ganeshaIconUrl && (
               <img 
                 src={settings.ganeshaIconUrl} 
                 alt="Ganesha Icon" 
-                className="h-full w-auto object-contain drop-shadow-sm"
+                className="h-16 md:h-24 lg:h-28 w-auto object-contain drop-shadow-sm mb-4 md:mb-6"
                 referrerPolicy="no-referrer"
               />
             )}
-          </div>
-          
-          {/* Text Elements */}
-          <div className="flex flex-col items-center justify-center flex-1 w-full z-10 text-[#7a103c]">
             <p className="font-serif text-sm md:text-xl tracking-widest text-[#8a1c47] mb-6 md:mb-10">
               || Shree Ganeshaya Namah ||
             </p>
@@ -124,12 +119,12 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                   <div className="absolute inset-0 bg-black/30 sm:bg-gradient-to-r sm:from-black/60 sm:via-black/40 sm:to-transparent pointer-events-none"></div>
                   
                   {/* Text Content */}
-                  <div className="absolute top-4 left-0 right-0 flex flex-col items-center text-center px-6 z-10 sm:top-0 sm:bottom-0 sm:w-1/2 sm:justify-center sm:items-start sm:text-left sm:pl-12 md:pl-16">
-                    <h3 className="text-4xl md:text-5xl font-['Great_Vibes',cursive] text-[#FAF5EA] mb-2 drop-shadow-md">
+                  <div className="absolute top-0 h-[60%] sm:h-auto left-0 right-0 flex flex-col justify-center items-center text-center px-6 z-10 sm:bottom-0 sm:w-1/2 sm:items-start sm:text-left sm:pl-12 md:pl-16 pt-6 sm:pt-0">
+                    <h3 className="text-[42px] leading-tight md:text-6xl font-['Great_Vibes',cursive] text-[#FAF5EA] mb-2 drop-shadow-md">
                       {event.heading}
                     </h3>
                     {event.showDescription !== false && event.description && (
-                      <p className="font-serif italic text-[#FAF5EA]/90 mb-4 text-xs md:text-base leading-relaxed drop-shadow md:max-w-md">
+                      <p className="font-serif italic text-[#FAF5EA]/90 mb-3 sm:mb-6 text-[13px] md:text-lg leading-relaxed drop-shadow md:max-w-md">
                         "{event.description}"
                       </p>
                     )}
@@ -140,25 +135,25 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                     {event.showDate !== false && event.date && (
                       <div className="mb-3 w-full">
                          <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>DATE</p>
+                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>DATE</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs md:text-sm drop-shadow font-medium">{event.date}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.date}</p>
                       </div>
                     )}
                     {event.showTime !== false && event.time && (
                       <div className="mb-3 w-full">
                          <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>TIME</p>
+                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>TIME</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs md:text-sm drop-shadow font-medium">{event.time}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.time}</p>
                       </div>
                     )}
                     {event.showVenue !== false && event.venue && (
                       <div className="mb-3 w-full">
                          <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>VENUE</p>
+                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>VENUE</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs md:text-sm drop-shadow font-medium">{event.venue}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.venue}</p>
                       </div>
                     )}
                   </div>
