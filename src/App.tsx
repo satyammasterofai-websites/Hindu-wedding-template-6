@@ -22,6 +22,7 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [settings, setSettings] = useState<ECardSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -35,6 +36,7 @@ export default function App() {
   // Load settings from Firestore or LocalStorage fallback
   useEffect(() => {
     const loadSettings = async () => {
+      setLoadingProgress(10);
       let finalSettings = defaultSettings;
       
       try {
@@ -43,6 +45,7 @@ export default function App() {
 
         // Fetch from Firestore first
         const docSnap = await getDoc(docRef);
+        setLoadingProgress(30);
         
         if (docSnap.exists()) {
           dataToUse = docSnap.data();
@@ -149,21 +152,32 @@ export default function App() {
           ...(finalSettings.eventDetails?.map((e: any) => e.imageUrl) || [])
         ].filter(Boolean) as string[];
 
-        const preloadPromises = imagesToPreload.map((url) => {
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = resolve;
-            img.onerror = resolve; // Resolve even on error so we don't block
-            img.src = url;
+        const totalImages = imagesToPreload.length;
+        if (totalImages === 0) {
+          setLoadingProgress(100);
+        } else {
+          let loadedImages = 0;
+          const preloadPromises = imagesToPreload.map((url) => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              const handleLoad = () => {
+                 loadedImages++;
+                 setLoadingProgress(30 + Math.round((loadedImages / totalImages) * 70));
+                 resolve(null);
+              };
+              img.onload = handleLoad;
+              img.onerror = handleLoad;
+              img.src = url;
+            });
           });
-        });
 
-        await Promise.all(preloadPromises);
+          await Promise.all(preloadPromises);
+        }
       } catch (e) {
         console.warn('Error during image preloading', e);
       }
 
-      setIsLoading(false);
+      setTimeout(() => { setIsLoading(false); }, 400); // slight delay so user sees 100%
     };
     
     loadSettings();
@@ -323,11 +337,20 @@ export default function App() {
         {/* Elegant minimal spinner */}
         <div className="relative z-10 w-10 h-10 border-[2px] border-current/20 border-t-current rounded-full animate-spin" />
         
-        <div className="relative z-10 flex flex-col items-center gap-2">
+        <div className="relative z-10 flex flex-col items-center gap-4 mt-6 w-64">
           <p className="font-['Playfair_Display',serif] tracking-[0.2em] uppercase text-xs md:text-sm font-medium animate-pulse">
             Loading Your Invitation
           </p>
-          <div className="w-12 h-[1px] bg-current opacity-30 mt-2" />
+          
+          <div className="w-full flex flex-col items-center gap-2">
+            <div className="w-full h-[2px] bg-current/20 rounded-full overflow-hidden">
+               <div 
+                 className="h-full bg-current transition-all duration-300 ease-out" 
+                 style={{ width: `${loadingProgress}%` }}
+               />
+            </div>
+            <span className="text-[10px] tracking-widest font-sans opacity-70">{loadingProgress}%</span>
+          </div>
         </div>
       </div>
     );
