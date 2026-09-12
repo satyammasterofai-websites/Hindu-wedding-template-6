@@ -82,7 +82,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
         
         {/* Events Schedule Section */}
         {settings.eventDetails && settings.eventDetails.length > 0 && (
-          <div className="w-full py-20 px-6 flex flex-col items-center relative bg-[#FAF5EA]">
+          <div id="events-section" className="w-full py-20 px-6 flex flex-col items-center relative bg-[#FAF5EA]">
             <div className="mb-16 text-center flex flex-col items-center">
               <div className="text-[#C9A15A] mb-4 opacity-70">
                 <span className="font-serif text-lg flex items-center opacity-70">--- <span className="mx-2 text-xl">✿</span> ---</span>
@@ -217,7 +217,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
         </div>
 
         {/* Family Invitation Section */}
-        <div className="w-full py-28 px-6 flex flex-col items-center text-center bg-[#FAF5EA]">
+        <div id="family-section" className="w-full py-28 px-6 flex flex-col items-center text-center bg-[#FAF5EA]">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -247,7 +247,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
         </div>
 
         {/* Venue Section */}
-        <div className="w-full py-28 px-6 flex flex-col items-center text-center bg-[#DCE8D3]">
+        <div id="venue-section" className="w-full py-28 px-6 flex flex-col items-center text-center bg-[#DCE8D3]">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}

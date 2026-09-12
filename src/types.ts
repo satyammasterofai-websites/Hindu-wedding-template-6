@@ -123,6 +123,7 @@ export const defaultSettings: ECardSettings = {
     {
       id: 'event-1',
       heading: 'Haldi Ceremony',
+      detailsColor: '#ff0000',
       description: 'A vibrant morning filled with haldi, laughter, music, and beautiful family moments as we begin the wedding celebrations.',
       date: '18 February 2027, Thursday',
       time: '11:00 AM – 1:00 PM',
@@ -177,6 +178,7 @@ export const defaultSettings: ECardSettings = {
     {
       id: 'event-4',
       heading: 'Wedding Ceremony',
+      detailsColor: '#FF69B4',
       description: 'With the blessings of our loved ones, we invite you to witness the beautiful beginning of our forever as we exchange vows and embark on a new journey together.',
       date: '20 February 2027, Saturday',
       time: '7:00 PM onwards',

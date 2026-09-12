@@ -771,9 +771,20 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                         type="text"
                         value={activeEl.heading}
                         onChange={(e) => handleEventChange(activeEl.id, 'heading', e.target.value)}
-                        className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600"
+                        className="w-full px-3 py-2 border border-stone-200 rounded-md focus:ring-stone-900 focus:border-stone-900 sm:text-sm text-stone-600 mb-3"
                         placeholder="e.g. The Ceremony"
                       />
+                      <div>
+                         <label className="block text-xs font-medium text-stone-500 mb-1">Labels Color (Date/Time/Venue)</label>
+                         <div className="flex items-center gap-2">
+                           <input
+                             type="color"
+                             value={activeEl.detailsColor || '#C9A15A'}
+                             onChange={(e) => handleEventChange(activeEl.id, 'detailsColor', e.target.value)}
+                             className="w-8 h-8 rounded cursor-pointer border border-stone-200"
+                           />
+                         </div>
+                      </div>
                     </div>
                     <ImageUploadField
                       label="Event Image"
@@ -1069,7 +1080,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                         if (saved) {
                            try {
                              const data = JSON.parse(saved);
-                             onChange(data);
+                             setSettings(data);
                              alert('Successfully recovered data from your browser\'s local storage!');
                            } catch (e) {
                              alert('Failed to parse local storage data.');
@@ -1100,7 +1111,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                          const oldVal = newFields[key];
                          delete newFields[key];
                          newFields[e.target.value] = oldVal;
-                         onChange({ customFields: newFields });
+                         setSettings(prev => ({ ...prev, customFields: newFields }));
                       }}
                       className="w-1/3 px-3 py-2 border border-stone-200 rounded-md sm:text-sm"
                     />
@@ -1109,7 +1120,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                       placeholder="Value"
                       value={value}
                       onChange={(e) => {
-                         onChange({ customFields: { ...settings.customFields, [key]: e.target.value } });
+                         setSettings(prev => ({ ...prev, customFields: { ...prev.customFields, [key]: e.target.value } }));
                       }}
                       className="flex-1 px-3 py-2 border border-stone-200 rounded-md sm:text-sm"
                     />
@@ -1117,7 +1128,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                       onClick={() => {
                         const newFields = { ...settings.customFields };
                         delete newFields[key];
-                        onChange({ customFields: newFields });
+                        setSettings(prev => ({ ...prev, customFields: newFields }));
                       }}
                       className="px-2 py-1 bg-red-50 text-red-600 rounded-md text-xs hover:bg-red-100"
                     >
@@ -1128,7 +1139,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                 <button
                   onClick={() => {
                     const newKey = `column_${Object.keys(settings.customFields || {}).length + 1}`;
-                    onChange({ customFields: { ...settings.customFields, [newKey]: '' } });
+                    setSettings(prev => ({ ...prev, customFields: { ...prev.customFields, [newKey]: '' } }));
                   }}
                   className="px-4 py-2 bg-stone-100 border border-stone-200 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors"
                 >
