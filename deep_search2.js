@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcF4-qa-yr6CO0kNqx-tlLLhARV1Yxzhw",
@@ -9,19 +9,17 @@ const firebaseConfig = {
   messagingSenderId: "110051953109",
   appId: "1:110051953109:web:3041db0feea780ea00d55c"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap2 = await getDoc(doc(db, 'ecard', 'main-settings'));
-  const data = snap2.data();
-  console.log("main-settings eventDetails images:");
-  if (data?.eventDetails) {
-    data.eventDetails.forEach((e, i) => {
-      console.log(`event ${i}:`, e.imageUrl.substring(0, 100));
-    });
-  }
+  const querySnapshot = await getDocs(collection(db, "ecard"));
+  querySnapshot.forEach((doc) => {
+    // print all file-meta
+    if (doc.id.startsWith("file-meta-")) {
+      console.log(doc.id, JSON.stringify(doc.data()));
+    }
+  });
   process.exit(0);
 }
 run();

@@ -1,27 +1,16 @@
 const fs = require('fs');
 let content = fs.readFileSync('src/App.tsx', 'utf8');
 
-// 1. Remove the forced migration block
+// 1. Pass props to AdminPanel
 content = content.replace(
-  `          if (dataToUse.eventDetails && dataToUse.eventDetails[0] && (dataToUse.eventDetails[0].date === 'SAT · February 13, 2027' || dataToUse.eventDetails[0].heading === 'Haldi' || dataToUse.eventDetails[0].heading === 'Haldi Ceremony')) {
-             // Force migration of events to new default format
-             const defaultEvents = defaultSettings.eventDetails;
-             dataToUse.eventDetails = defaultEvents;
-          }`,
-  ``
+  '<AdminPanel \n          settings={settings}\n          setSettings={setSettings} \n          onExit={handleSaveAndExit} \n          isExiting={isExiting}\n        />',
+  '<AdminPanel \n          settings={settings}\n          setSettings={setSettings} \n          onExit={handleSaveAndExit} \n          isExiting={isExiting}\n          cardId={cardId}\n          setCardId={setCardId}\n        />'
 );
 
-// 2. Fix the missing caricatureUrl in handleSaveAndExit
+// 2. Change the default cardId from 'main-settings' to 'remix-v1' if not provided
 content = content.replace(
-  `         settingsToSave.eventDetails = await Promise.all(settingsToSave.eventDetails.map(async (e, i) => ({
-            ...e,
-            imageUrl: await prepareUrl(e.imageUrl, \`event-\${e.id || i}\`)
-         })));`,
-  `         settingsToSave.eventDetails = await Promise.all(settingsToSave.eventDetails.map(async (e, i) => ({
-            ...e,
-            imageUrl: await prepareUrl(e.imageUrl, \`event-\${e.id || i}\`),
-            caricatureUrl: e.caricatureUrl ? await prepareUrl(e.caricatureUrl, \`event-\${e.id || i}-caricature\`) : undefined
-         })));`
+  "return new URLSearchParams(window.location.search).get('id') || 'main-settings';",
+  "return new URLSearchParams(window.location.search).get('id') || 'remix-v1';"
 );
 
 fs.writeFileSync('src/App.tsx', content);

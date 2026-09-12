@@ -15,6 +15,7 @@ import { Butterflies } from './components/Butterflies';
 type ViewState = 'opening' | 'hero' | 'admin';
 
 const uploadCache = new Map<string, string>();
+const uploadPromiseCache = new Map<string, Promise<string>>();
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('opening');
@@ -22,10 +23,13 @@ export default function App() {
   const [settings, setSettings] = useState<ECardSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isExiting, setIsExiting] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement>(null);
   
   const [cardId, setCardId] = useState<string>(() => {
-    return new URLSearchParams(window.location.search).get('id') || 'main-settings';
+    return new URLSearchParams(window.location.search).get('id') || 'remix-v1';
   });
 
   // Load settings from Firestore or LocalStorage fallback
@@ -34,7 +38,7 @@ export default function App() {
       let finalSettings = defaultSettings;
       
       try {
-        const docRef = doc(db, 'ecard', cardId);
+        const docRef = doc(db, 'wedding_invitations', cardId);
         let dataToUse: any = null;
 
         // Fetch from Firestore first
@@ -76,6 +80,7 @@ export default function App() {
           };
           
           if (dataToUse.heroImageUrl) dataToUse.heroImageUrl = await resolveUrl(dataToUse.heroImageUrl);
+          if (dataToUse.ogImageUrl) dataToUse.ogImageUrl = await resolveUrl(dataToUse.ogImageUrl);
           if (dataToUse.embeddedImageUrl) dataToUse.embeddedImageUrl = await resolveUrl(dataToUse.embeddedImageUrl);
           if (dataToUse.musicUrl) dataToUse.musicUrl = await resolveUrl(dataToUse.musicUrl);
           if (dataToUse.ganeshaIconUrl) dataToUse.ganeshaIconUrl = await resolveUrl(dataToUse.ganeshaIconUrl);
@@ -164,6 +169,18 @@ export default function App() {
     loadSettings();
   }, [cardId]);
 
+  // Prevent accidental refresh while uploading
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isExiting || uploadPromiseCache.size > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isExiting]);
+
   // Save settings whenever they change, with a slight debounce
   useEffect(() => {
     if (isLoading) return;
@@ -173,13 +190,21 @@ export default function App() {
         try {
           // Check for large files and chunk them
           const prepareUrl = async (url: string, id: string) => {
-            if (url && typeof url === 'string' && url.startsWith('data:') && url.length > 50000) {
+            if (url && typeof url === 'string' && url.startsWith('data:') && url.length > 20000) {
                if (uploadCache.has(url)) {
                  return uploadCache.get(url)!;
                }
-               const ecardUrl = await saveLargeFile(`${cardId}-${id}`, url);
-               uploadCache.set(url, ecardUrl);
-               return ecardUrl;
+               if (uploadPromiseCache.has(url)) {
+                 return await uploadPromiseCache.get(url)!;
+               }
+               const promise = saveLargeFile(`${cardId}-${id}`, url).then(ecardUrl => {
+                 uploadCache.set(url, ecardUrl);
+                 return ecardUrl;
+               }).finally(() => {
+                 uploadPromiseCache.delete(url);
+               });
+               uploadPromiseCache.set(url, promise);
+               return await promise;
             }
             return url;
           };
@@ -199,7 +224,14 @@ export default function App() {
              })));
           }
 
-          await setDoc(doc(db, 'ecard', cardId), settingsToSave);
+          // Firestore does not accept undefined values, so we strip them
+      const cleanSettings = JSON.parse(JSON.stringify(settingsToSave));
+      console.log("Saving doc:", cardId);
+      const str = JSON.stringify(cleanSettings);
+      console.log("Size in memory:", str.length);
+      console.log("Large strings in doc:", Object.entries(cleanSettings).filter(([k,v]) => typeof v === 'string' && (v as string).length > 5000).map(([k,v]) => k));
+      console.log("Events:", cleanSettings.eventDetails?.map((e: any) => e.heading));
+      await setDoc(doc(db, 'wedding_invitations', cardId), cleanSettings);
         } catch (error: any) {
           console.warn('Error saving settings to Firestore, falling back to local storage:', error.message);
           try {
@@ -225,23 +257,32 @@ export default function App() {
     }
     
     try {
-      const prepareUrl = async (url: string, id: string) => {
-        if (url && typeof url === 'string' && url.startsWith('data:') && url.length > 50000) {
-           if (uploadCache.has(url)) {
-             return uploadCache.get(url)!;
-           }
-           const ecardUrl = await saveLargeFile(`${cardId}-${id}`, url);
-           uploadCache.set(url, ecardUrl);
-           return ecardUrl;
-        }
-        return url;
-      };
+          const prepareUrl = async (url: string, id: string) => {
+            if (url && typeof url === 'string' && url.startsWith('data:') && url.length > 20000) {
+               if (uploadCache.has(url)) {
+                 return uploadCache.get(url)!;
+               }
+               if (uploadPromiseCache.has(url)) {
+                 return await uploadPromiseCache.get(url)!;
+               }
+               const promise = saveLargeFile(`${cardId}-${id}`, url).then(ecardUrl => {
+                 uploadCache.set(url, ecardUrl);
+                 return ecardUrl;
+               }).finally(() => {
+                 uploadPromiseCache.delete(url);
+               });
+               uploadPromiseCache.set(url, promise);
+               return await promise;
+            }
+            return url;
+          };
       
       const settingsToSave = { ...settings };
       settingsToSave.heroImageUrl = await prepareUrl(settingsToSave.heroImageUrl, 'hero');
       if (settingsToSave.ogImageUrl) settingsToSave.ogImageUrl = await prepareUrl(settingsToSave.ogImageUrl, 'og');
       settingsToSave.embeddedImageUrl = await prepareUrl(settingsToSave.embeddedImageUrl, 'embedded');
       settingsToSave.musicUrl = await prepareUrl(settingsToSave.musicUrl, 'music');
+      if (settingsToSave.ganeshaIconUrl) settingsToSave.ganeshaIconUrl = await prepareUrl(settingsToSave.ganeshaIconUrl, 'ganesha');
       
       if (settingsToSave.eventDetails && Array.isArray(settingsToSave.eventDetails)) {
          settingsToSave.eventDetails = await Promise.all(settingsToSave.eventDetails.map(async (e, i) => ({
@@ -251,9 +292,19 @@ export default function App() {
          })));
       }
 
-      await setDoc(doc(db, 'ecard', cardId), settingsToSave);
+      // Firestore does not accept undefined values, so we strip them by serializing to JSON
+      const cleanSettings = JSON.parse(JSON.stringify(settingsToSave));
+
+      const savePromise = setDoc(doc(db, 'wedding_invitations', cardId), cleanSettings);
+      await Promise.race([
+        savePromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Database save timed out. Please check your internet connection.")), 15000))
+      ]);
     } catch (error: any) {
-      console.warn('Error saving settings to Firestore on exit:', error.message);
+      console.error('Error saving settings to Firestore on exit:', error);
+      alert("Error saving to database: " + error.message + "\n\nFiles may have been too large or network disconnected.");
+      setIsExiting(false);
+      return; // Do not close the panel if there's an error
     }
     setCurrentView('opening');
     setIsExiting(false);
@@ -297,12 +348,9 @@ export default function App() {
   };
 
   const handleOpenAdmin = () => {
-    const pwd = window.prompt("Enter admin password:");
-    if (pwd === "6396") {
-      setCurrentView('admin');
-    } else if (pwd !== null) {
-      alert("Incorrect password");
-    }
+    setShowPasswordModal(true);
+    setPasswordInput('');
+    setPasswordError(false);
   };
 
   if (settings.paymentPending && currentView !== 'admin') {
@@ -334,6 +382,8 @@ export default function App() {
           setSettings={setSettings} 
           onExit={handleSaveAndExit} 
           isExiting={isExiting}
+          cardId={cardId}
+          setCardId={setCardId}
         />
       ) : (
         <>
@@ -356,6 +406,60 @@ export default function App() {
             )}
           </AnimatePresence>
         </>
+      )}
+
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl space-y-4">
+            <h3 className="text-xl font-serif text-stone-900">Admin Access</h3>
+            <p className="text-stone-500 text-sm">Please enter the admin password to continue.</p>
+            <input
+              type="password"
+              value={passwordInput}
+              onChange={(e) => {
+                setPasswordInput(e.target.value);
+                setPasswordError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                   if (passwordInput === '6396') {
+                     setShowPasswordModal(false);
+                     setCurrentView('admin');
+                   } else {
+                     setPasswordError(true);
+                   }
+                }
+              }}
+              className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-stone-900 focus:outline-none text-stone-900"
+              placeholder="Enter password..."
+              autoFocus
+            />
+            {passwordError && (
+              <p className="text-red-500 text-sm m-0">Incorrect password.</p>
+            )}
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="px-4 py-2 text-stone-500 hover:text-stone-700 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (passwordInput === '6396') {
+                     setShowPasswordModal(false);
+                     setCurrentView('admin');
+                   } else {
+                     setPasswordError(true);
+                   }
+                }}
+                className="px-6 py-2 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800"
+              >
+                Unlock
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

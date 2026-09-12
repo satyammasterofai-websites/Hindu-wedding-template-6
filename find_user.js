@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, query, where } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcF4-qa-yr6CO0kNqx-tlLLhARV1Yxzhw",
@@ -9,20 +9,19 @@ const firebaseConfig = {
   messagingSenderId: "110051953109",
   appId: "1:110051953109:web:3041db0feea780ea00d55c"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDocs(collection(db, 'ecard'));
-  let count = 0;
-  snap.forEach(doc => {
-    if (doc.id.startsWith('file-meta-') || doc.id.startsWith('file-chunk-')) {
-      console.log("Found chunk doc:", doc.id);
-      count++;
+  const querySnapshot = await getDocs(collection(db, "ecard"));
+  querySnapshot.forEach((doc) => {
+    const dataStr = JSON.stringify(doc.data());
+    // Print docs that have "Wankhede"
+    if (dataStr.toLowerCase().includes("wankhede")) {
+      console.log("Found:", doc.id);
+      console.log(dataStr.substring(0, 500));
     }
   });
-  console.log("Total chunks:", count);
   process.exit(0);
 }
 run();

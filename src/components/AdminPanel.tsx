@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { runDiagnostics } from '../lib/diagnostics';
 import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type } from 'lucide-react';
 import { ECardSettings, TextElement } from '../types';
 import { OpeningPage } from './OpeningPage';
@@ -6,6 +7,8 @@ import { HeroSection } from './HeroSection';
 
 interface Props {
   settings: ECardSettings;
+  cardId: string;
+  setCardId: (id: string) => void;
   setSettings: React.Dispatch<React.SetStateAction<ECardSettings>>;
   onExit: () => void;
   isExiting?: boolean;
@@ -268,9 +271,80 @@ const AudioUploadField = ({
   );
 };
 
-export function AdminPanel({ settings, setSettings, onExit, isExiting }: Props) {
+export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, setCardId }: Props) {
   const [activeTab, setActiveTab] = useState<'images' | 'layout' | 'text' | 'events' | 'content' | 'advanced'>('images');
   const [previewView, setPreviewView] = useState<'opening' | 'hero'>('opening');
+
+  const handleExport = () => {
+    const dataStr = JSON.stringify(settings, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `wedding-ecard-${cardId}-backup.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedSettings = JSON.parse(event.target?.result as string);
+        setSettings(importedSettings);
+        alert("Settings imported successfully! Don't forget to exit and save.");
+      } catch (error) {
+        alert("Failed to parse the JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const importedSettings = JSON.parse(event.target?.result as string);
+        setSettings(importedSettings);
+        alert("Settings imported successfully! Don't forget to exit and save.");
+      } catch (error) {
+        alert("Failed to parse the JSON file.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleCardIdChange = () => {
+    const newId = window.prompt("Enter new Database Name (e.g., 'remix-v2').\nThis prevents overlap with the official website. Your changes will be saved to this new database.", cardId);
+    if (newId && newId.trim() !== "" && newId !== cardId) {
+      localStorage.setItem('wedding-ecard-settings', JSON.stringify(settings));
+      setCardId(newId.trim());
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('id', newId.trim());
+      window.history.pushState({}, '', newUrl.toString());
+      alert(`Database Name changed to '${newId.trim()}'. Please save your changes and use the new URL to share.`);
+    }
+  };
+
   const [activeTextId, setActiveTextId] = useState<string | null>(
     settings.textElements && settings.textElements.length > 0 ? settings.textElements[0].id : null
   );
@@ -950,6 +1024,118 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting }: Props) 
             </div>
           ) : activeTab === 'advanced' ? (
             <div className="space-y-6">
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Data Management & Remixing</h3>
+              <div className="space-y-4 bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
+                <div>
+                  <label className="block text-sm font-medium text-stone-900">Database Name (Card ID)</label>
+                  <p className="text-xs text-stone-500 mt-1 mb-2">Change this to create an isolated remix of the website so your data won't overlap with the original template.</p>
+                  <div className="flex items-center gap-2">
+                     <input type="text" readOnly value={cardId} className="flex-1 px-3 py-2 border border-stone-200 rounded-md bg-stone-50 text-stone-600 sm:text-sm" />
+                     <button onClick={handleCardIdChange} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm hover:bg-stone-800 transition-colors">Change Database</button>
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t border-stone-100">
+                  <label className="block text-sm font-medium text-stone-900 mb-2">Backup & Restore</label>
+                  <button onClick={handleExport} className="w-full mb-3 px-4 py-2 border border-stone-200 text-stone-700 rounded-md text-sm hover:bg-stone-50 transition-colors text-center">Export Data</button>
+                  
+                  <div 
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-colors ${isDragging ? 'border-stone-900 bg-stone-50' : 'border-stone-200 hover:border-stone-300'}`}
+                  >
+                    <Upload className="w-6 h-6 text-stone-400 mb-2" />
+                    <p className="text-sm text-stone-600 mb-1">Drag and drop backup JSON</p>
+                    <p className="text-xs text-stone-400 mb-3">or</p>
+                    <label className="px-4 py-1.5 bg-stone-100 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors cursor-pointer font-medium">
+                      Browse Files
+                      <input type="file" accept=".json" onChange={handleImport} className="hidden" />
+                    </label>
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      onClick={async () => {
+                         const report = await runDiagnostics(cardId);
+                         alert("DIAGNOSTIC REPORT:\n\n" + report.join("\n"));
+                      }}
+                      className="w-full px-4 py-2 mb-2 bg-stone-900 text-white rounded-md text-sm hover:bg-stone-800 transition-colors text-center font-medium"
+                    >
+                      Run System Diagnostics
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const saved = localStorage.getItem('wedding-ecard-settings');
+                        if (saved) {
+                           try {
+                             const data = JSON.parse(saved);
+                             onChange(data);
+                             alert('Successfully recovered data from your browser\'s local storage!');
+                           } catch (e) {
+                             alert('Failed to parse local storage data.');
+                           }
+                        } else {
+                           alert('No saved data found in this browser\'s local storage.');
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-stone-100 border border-stone-300 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors text-center font-medium"
+                    >
+                      Recover from Local Browser Storage
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Custom Database Columns (Fields)</h3>
+              <div className="space-y-4 bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
+                <p className="text-xs text-stone-500 mb-2">Add custom database fields to save specific details.</p>
+                {Object.entries(settings.customFields || {}).map(([key, value], idx) => (
+                  <div key={idx} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Column Name"
+                      value={key}
+                      onChange={(e) => {
+                         const newFields = { ...settings.customFields };
+                         const oldVal = newFields[key];
+                         delete newFields[key];
+                         newFields[e.target.value] = oldVal;
+                         onChange({ customFields: newFields });
+                      }}
+                      className="w-1/3 px-3 py-2 border border-stone-200 rounded-md sm:text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Value"
+                      value={value}
+                      onChange={(e) => {
+                         onChange({ customFields: { ...settings.customFields, [key]: e.target.value } });
+                      }}
+                      className="flex-1 px-3 py-2 border border-stone-200 rounded-md sm:text-sm"
+                    />
+                    <button
+                      onClick={() => {
+                        const newFields = { ...settings.customFields };
+                        delete newFields[key];
+                        onChange({ customFields: newFields });
+                      }}
+                      className="px-2 py-1 bg-red-50 text-red-600 rounded-md text-xs hover:bg-red-100"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const newKey = `column_${Object.keys(settings.customFields || {}).length + 1}`;
+                    onChange({ customFields: { ...settings.customFields, [newKey]: '' } });
+                  }}
+                  className="px-4 py-2 bg-stone-100 border border-stone-200 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors"
+                >
+                  + Add New Column
+                </button>
+              </div>
+
               <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Advanced Settings</h3>
               <div className="space-y-4 bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
                 <div className="flex items-center justify-between">

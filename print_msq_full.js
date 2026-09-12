@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore, getDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcF4-qa-yr6CO0kNqx-tlLLhARV1Yxzhw",
@@ -9,17 +9,12 @@ const firebaseConfig = {
   messagingSenderId: "110051953109",
   appId: "1:110051953109:web:3041db0feea780ea00d55c"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const metaSnap = await getDoc(doc(db, 'ecard', 'file-meta-main-settings-hero'));
-  console.log("main-settings-hero exists?", metaSnap.exists());
-  
-  const snap2 = await getDoc(doc(db, 'ecard', 'main-settings'));
-  console.log("main-settings heroImageUrl:", snap2.data()?.heroImageUrl);
-  
+  const docSnap = await getDoc(doc(db, "ecard", "remix-msq37981-164o1"));
+  console.log(JSON.stringify(docSnap.data(), null, 2));
   process.exit(0);
 }
 run();

@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore, getDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcF4-qa-yr6CO0kNqx-tlLLhARV1Yxzhw",
@@ -9,15 +9,14 @@ const firebaseConfig = {
   messagingSenderId: "110051953109",
   appId: "1:110051953109:web:3041db0feea780ea00d55c"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  const snap = await getDoc(doc(db, 'ecard', 'remix-mspxyyth-sxgjp'));
-  const data = snap.data();
-  console.log("Full hero:", data.heroImageUrl);
-  console.log("Full embedded:", data.embeddedImageUrl);
+  const docSnap = await getDoc(doc(db, "ecard", "remix-msq37981-164o1"));
+  if (docSnap.exists()) {
+     console.log(JSON.stringify(docSnap.data(), null, 2));
+  }
   process.exit(0);
 }
 run();

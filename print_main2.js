@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc } from "firebase/firestore";
+import { initializeApp } from 'firebase/app';
+import { getFirestore, getDoc, doc } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcF4-qa-yr6CO0kNqx-tlLLhARV1Yxzhw",
@@ -9,17 +9,12 @@ const firebaseConfig = {
   messagingSenderId: "110051953109",
   appId: "1:110051953109:web:3041db0feea780ea00d55c"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function run() {
-  try {
-    await setDoc(doc(db, 'ecard', 'file-meta-test2'), { test: true });
-    console.log("Save successful!");
-  } catch (e) {
-    console.error("Save failed:", e);
-  }
+  const docSnap = await getDoc(doc(db, "ecard", "main-settings"));
+  console.log(JSON.stringify(docSnap.data().eventDetails, null, 2));
   process.exit(0);
 }
 run();

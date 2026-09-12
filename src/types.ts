@@ -88,6 +88,7 @@ export interface ECardSettings {
   heroMiddleText?: string;
   heroBrideName?: string;
   heroBrideParents?: string;
+  customFields?: Record<string, string>;
 }
 
 export const defaultSettings: ECardSettings = {
