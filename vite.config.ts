@@ -5,6 +5,11 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    define: {
+      '__APPLET_ID__': JSON.stringify(process.env.APPLET_ID || ''),
+      '__K_SERVICE__': JSON.stringify(process.env.K_SERVICE || ''),
+      '__APP_URL__': JSON.stringify(process.env.APP_URL || '')
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

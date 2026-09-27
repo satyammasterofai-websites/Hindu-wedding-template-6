@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { runDiagnostics } from '../lib/diagnostics';
-import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type } from 'lucide-react';
+import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type, Copy, Check, ShieldCheck, GitFork, Sparkles } from 'lucide-react';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { getShareableUrl, saveToLocalStorage, getFromLocalStorage, isMasterTemplate, isOfficialWebsite, sanitizeCardIdForSave, MASTER_CARD_ID } from '../lib/cardInstance';
 import { ECardSettings, TextElement } from '../types';
 import { OpeningPage } from './OpeningPage';
 import { HeroSection } from './HeroSection';
@@ -274,6 +277,9 @@ const AudioUploadField = ({
 export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, setCardId }: Props) {
   const [activeTab, setActiveTab] = useState<'images' | 'layout' | 'text' | 'events' | 'content' | 'advanced'>('images');
   const [previewView, setPreviewView] = useState<'opening' | 'hero'>('opening');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [isForking, setIsForking] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleExport = () => {
     const dataStr = JSON.stringify(settings, null, 2);
@@ -285,8 +291,6 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const [isDragging, setIsDragging] = useState(false);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -333,15 +337,79 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
     reader.readAsText(file);
   };
 
-  const handleCardIdChange = () => {
-    const newId = window.prompt("Enter new Database Name (e.g., 'remix-v2').\nThis prevents overlap with the official website. Your changes will be saved to this new database.", cardId);
-    if (newId && newId.trim() !== "" && newId !== cardId) {
-      localStorage.setItem('wedding-ecard-settings', JSON.stringify(settings));
-      setCardId(newId.trim());
+  const handleCopyLink = () => {
+    const shareUrl = getShareableUrl(cardId);
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2500);
+      }).catch(() => {
+        prompt("Copy your shareable invitation link:", shareUrl);
+      });
+    } else {
+      prompt("Copy your shareable invitation link:", shareUrl);
+    }
+  };
+
+  const handleForkRemix = async () => {
+    const defaultNewName = `remix-${Math.random().toString(36).substring(2, 8)}`;
+    const input = window.prompt(
+      "Create a New Isolated Remix:\n\nEnter a unique name for your remix (e.g. 'rahul-priya' or 'wedding-2027').\n\nAll current images, text, events, and settings will be copied to this new database so nothing is lost, and all future edits will be 100% separate!",
+      defaultNewName
+    );
+    if (!input || input.trim() === "") return;
+    const sanitized = input.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (sanitized === cardId) {
+      alert("You are already on this database ID.");
+      return;
+    }
+    if (!isOfficialWebsite() && (sanitized === MASTER_CARD_ID || sanitized === 'official-wedding-card')) {
+      alert("Cannot overwrite the official website template name. Please pick a custom remix name.");
+      return;
+    }
+
+    setIsForking(true);
+    try {
+      // 1. Save settings to new card ID in Firestore
+      const targetId = sanitizeCardIdForSave(sanitized);
+      const cleanSettings = JSON.parse(JSON.stringify(settings));
+      await setDoc(doc(db, 'wedding_invitations', targetId), cleanSettings);
+      
+      // 2. Save to isolated localStorage
+      saveToLocalStorage(targetId, cleanSettings);
+      
+      // 3. Update state and URL
+      setCardId(targetId);
       const newUrl = new URL(window.location.href);
-      newUrl.searchParams.set('id', newId.trim());
+      newUrl.searchParams.set('id', targetId);
       window.history.pushState({}, '', newUrl.toString());
-      alert(`Database Name changed to '${newId.trim()}'. Please save your changes and use the new URL to share.`);
+      
+      alert(`🎉 New Remix created successfully!\n\nDatabase ID: '${targetId}'\n\nYour website is now running on its own dedicated database. All changes will be saved to '${targetId}' and will never overlap with the master template or any other website.`);
+    } catch (err: any) {
+      console.error("Error creating remix:", err);
+      alert("Error creating remix database: " + err.message);
+    } finally {
+      setIsForking(false);
+    }
+  };
+
+  const handleCardIdChange = () => {
+    const newId = window.prompt(
+      "Switch to another Database Name:\n\nEnter the database ID you want to load or switch to:", 
+      cardId
+    );
+    if (newId && newId.trim() !== "" && newId.trim() !== cardId) {
+      let sanitized = newId.trim();
+      if (!isOfficialWebsite() && (sanitized === MASTER_CARD_ID || sanitized === 'official-wedding-card')) {
+        alert("This is a remix website. You cannot switch to or overwrite the official template. Please choose a custom remix name.");
+        return;
+      }
+      saveToLocalStorage(cardId, settings);
+      setCardId(sanitized);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('id', sanitized);
+      window.history.pushState({}, '', newUrl.toString());
+      alert(`Switched to Database '${sanitized}'. The website will now load and save changes to this database.`);
     }
   };
 
@@ -1035,20 +1103,100 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
             </div>
           ) : activeTab === 'advanced' ? (
             <div className="space-y-6">
-              <h3 className="text-lg font-medium text-stone-800 border-b pb-2">Data Management & Remixing</h3>
+              <h3 className="text-lg font-medium text-stone-800 border-b pb-2 flex items-center justify-between">
+                <span>Data Management & Remixing</span>
+                <span className="text-xs font-normal px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                  <ShieldCheck size={13} /> Zero Overlap Guaranteed
+                </span>
+              </h3>
+
+              {/* Data Isolation Status Box */}
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 text-emerald-950 space-y-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                  <span className="font-semibold text-sm">
+                    {isOfficialWebsite() ? 'Official Website Master Instance' : 'Remix Data Isolation Active'}
+                  </span>
+                  <span className="ml-auto text-[11px] font-mono bg-emerald-200/70 text-emerald-900 px-2 py-0.5 rounded">
+                    {isOfficialWebsite() ? 'Official Master' : 'Isolated Remix'}
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  {isOfficialWebsite() 
+                    ? `This is the official master website running on database ID "${cardId}". All initial wedding data is safely recovered and protected. Any remix created from this site will save to its own database and can never overwrite this website.`
+                    : `This remix is running on dedicated database ID "${cardId}". All changes and files are saved separately and will never overlap with the official website.`
+                  }
+                </p>
+              </div>
+
+              {/* Active Database & Fork Section */}
               <div className="space-y-4 bg-white p-5 rounded-xl border border-stone-100 shadow-sm">
                 <div>
-                  <label className="block text-sm font-medium text-stone-900">Database Name (Card ID)</label>
-                  <p className="text-xs text-stone-500 mt-1 mb-2">Change this to create an isolated remix of the website so your data won't overlap with the original template.</p>
+                  <label className="block text-sm font-medium text-stone-900">Current Database ID (Card ID)</label>
+                  <p className="text-xs text-stone-500 mt-1 mb-2">Each database ID stores its own completely independent data and chunked file storage.</p>
                   <div className="flex items-center gap-2">
-                     <input type="text" readOnly value={cardId} className="flex-1 px-3 py-2 border border-stone-200 rounded-md bg-stone-50 text-stone-600 sm:text-sm" />
-                     <button onClick={handleCardIdChange} className="px-4 py-2 bg-stone-900 text-white rounded-md text-sm hover:bg-stone-800 transition-colors">Change Database</button>
+                     <input type="text" readOnly value={cardId} className="flex-1 px-3 py-2 border border-stone-200 rounded-md bg-stone-50 font-mono text-stone-700 sm:text-sm" />
+                     <button 
+                       onClick={handleCardIdChange} 
+                       className="px-3 py-2 border border-stone-300 text-stone-700 rounded-md text-sm hover:bg-stone-50 transition-colors font-medium whitespace-nowrap"
+                     >
+                       Switch Database
+                     </button>
                   </div>
                 </div>
-                
+
+                <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={handleForkRemix}
+                    disabled={isForking}
+                    className="flex-1 px-4 py-2.5 bg-stone-900 text-white rounded-md text-sm hover:bg-stone-800 transition-colors flex items-center justify-center gap-2 font-medium shadow-sm"
+                  >
+                    {isForking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Creating Remix...</span>
+                      </>
+                    ) : (
+                      <>
+                        <GitFork className="w-4 h-4" />
+                        <span>Fork / Create New Remix</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Direct Shareable Link */}
+                <div className="pt-3 border-t border-stone-100 space-y-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500">Direct Shareable Link</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text" 
+                      readOnly 
+                      value={getShareableUrl(cardId)} 
+                      className="flex-1 px-3 py-1.5 border border-stone-200 rounded-md bg-stone-50 text-stone-500 text-xs font-mono truncate" 
+                    />
+                    <button
+                      onClick={handleCopyLink}
+                      className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-700">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copy Link</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="pt-4 border-t border-stone-100">
                   <label className="block text-sm font-medium text-stone-900 mb-2">Backup & Restore</label>
-                  <button onClick={handleExport} className="w-full mb-3 px-4 py-2 border border-stone-200 text-stone-700 rounded-md text-sm hover:bg-stone-50 transition-colors text-center">Export Data</button>
+                  <button onClick={handleExport} className="w-full mb-3 px-4 py-2 border border-stone-200 text-stone-700 rounded-md text-sm hover:bg-stone-50 transition-colors text-center">Export Data (JSON)</button>
                   
                   <div 
                     onDrop={handleDrop}
@@ -1076,17 +1224,12 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                     </button>
                     <button 
                       onClick={() => {
-                        const saved = localStorage.getItem('wedding-ecard-settings');
+                        const saved = getFromLocalStorage(cardId);
                         if (saved) {
-                           try {
-                             const data = JSON.parse(saved);
-                             setSettings(data);
-                             alert('Successfully recovered data from your browser\'s local storage!');
-                           } catch (e) {
-                             alert('Failed to parse local storage data.');
-                           }
+                           setSettings(saved);
+                           alert(`Successfully recovered data for '${cardId}' from local browser storage!`);
                         } else {
-                           alert('No saved data found in this browser\'s local storage.');
+                           alert(`No local storage data found for '${cardId}'.`);
                         }
                       }}
                       className="w-full px-4 py-2 bg-stone-100 border border-stone-300 text-stone-700 rounded-md text-sm hover:bg-stone-200 transition-colors text-center font-medium"

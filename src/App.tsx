@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { ECardSettings, defaultSettings } from './types';
 import { saveLargeFile, loadLargeFile } from './lib/storage';
+import { determineInitialCardId, getFromLocalStorage, saveToLocalStorage, sanitizeCardIdForSave, MASTER_CARD_ID } from './lib/cardInstance';
 import { OpeningPage } from './components/OpeningPage';
 import { HeroSection } from './components/HeroSection';
 import { AdminPanel } from './components/AdminPanel';
@@ -30,35 +31,56 @@ export default function App() {
   const audioRef = React.useRef<HTMLAudioElement>(null);
   
   const [cardId, setCardId] = useState<string>(() => {
-    return new URLSearchParams(window.location.search).get('id') || 'remix-v1';
+    return determineInitialCardId();
   });
+
+  // Clear file caches whenever database/card ID changes to prevent cross-contamination
+  useEffect(() => {
+    uploadCache.clear();
+    uploadPromiseCache.clear();
+  }, [cardId]);
 
   // Load settings from Firestore or LocalStorage fallback
   useEffect(() => {
     const loadSettings = async () => {
       setLoadingProgress(10);
       let finalSettings = defaultSettings;
+      let isNewRemixDoc = false;
       
       try {
         const docRef = doc(db, 'wedding_invitations', cardId);
         let dataToUse: any = null;
 
-        // Fetch from Firestore first
+        // Fetch from Firestore first for this specific cardId
         const docSnap = await getDoc(docRef);
         setLoadingProgress(30);
         
         if (docSnap.exists()) {
           dataToUse = docSnap.data();
-          console.log('Loaded data from Firestore');
+          console.log(`Loaded data from Firestore for card: ${cardId}`);
         } else {
-          // If no Firestore data, check local storage
-          const saved = localStorage.getItem('wedding-ecard-settings');
-          if (saved) {
+          // If no document exists for this cardId (e.g. this is a newly created REMIX!):
+          console.log(`Card document '${cardId}' not found. Loading template from master '${MASTER_CARD_ID}'...`);
+          isNewRemixDoc = true;
+
+          if (cardId !== MASTER_CARD_ID) {
             try {
-              dataToUse = JSON.parse(saved);
-              console.log('Recovered data from local storage');
-            } catch (e) {
-              console.warn('Error parsing local storage:', e);
+              const masterSnap = await getDoc(doc(db, 'wedding_invitations', MASTER_CARD_ID));
+              if (masterSnap.exists()) {
+                dataToUse = masterSnap.data();
+                console.log(`Successfully cloned template data from ${MASTER_CARD_ID} into remix ${cardId}`);
+              }
+            } catch (err) {
+              console.warn(`Could not load master template ${MASTER_CARD_ID}:`, err);
+            }
+          }
+
+          // If still no Firestore data, check local storage
+          if (!dataToUse) {
+            const saved = getFromLocalStorage(cardId);
+            if (saved) {
+              dataToUse = saved;
+              console.log(`Recovered data from local storage for ${cardId}`);
             }
           }
         }
@@ -73,8 +95,14 @@ export default function App() {
             if (url && typeof url === 'string' && url.startsWith('ecard-file://')) {
               const dataUrl = await loadLargeFile(url);
               if (dataUrl) {
-                // Populate cache so we don't re-upload if we save it back
-                uploadCache.set(dataUrl, url);
+                const actualFileId = url.replace('ecard-file://', '');
+                // Populate cache ONLY if this file already belongs to the current cardId.
+                // If it belonged to another template (e.g. remix-v1) and this is a new remix,
+                // do NOT cache the old ecard-file:// URL, so that when this remix saves,
+                // it will upload its OWN isolated copy under ${cardId}-...
+                if (actualFileId.startsWith(`${cardId}-`)) {
+                  uploadCache.set(dataUrl, url);
+                }
                 return dataUrl;
               }
               return ''; // Return empty string so broken ecard-file:// doesn't show up in image src
@@ -112,27 +140,40 @@ export default function App() {
           }
           finalSettings = merged;
           setSettings(merged);
+
+          // If this is a newly opened remix, initialize its own Firestore doc immediately
+          if (isNewRemixDoc) {
+            try {
+              const targetDocId = sanitizeCardIdForSave(cardId);
+              const cleanInitial = JSON.parse(JSON.stringify(merged));
+              await setDoc(doc(db, 'wedding_invitations', targetDocId), cleanInitial);
+              console.log(`Initialized separate Firestore document for remix '${targetDocId}'`);
+            } catch (err) {
+              console.warn(`Could not initialize Firestore doc for ${cardId}:`, err);
+            }
+          }
+          saveToLocalStorage(cardId, merged);
         } else {
           await setDoc(docRef, defaultSettings);
+          saveToLocalStorage(cardId, defaultSettings);
         }
       } catch (error: any) {
         console.warn('Error in loadSettings:', error.message);
-        // Fallback to local storage if EVERYTHING failed and we haven't already
+        // Fallback to local storage if EVERYTHING failed
         try {
-          const saved = localStorage.getItem('wedding-ecard-settings');
-          if (saved) {
-            const data = JSON.parse(saved);
-            const merged = { ...defaultSettings, ...data };
-            if (!data.textElements && data.openingText) {
+          const savedData = getFromLocalStorage(cardId);
+          if (savedData) {
+            const merged = { ...defaultSettings, ...savedData };
+            if (!savedData.textElements && savedData.openingText) {
               merged.textElements = [{
                 id: 'migrated-1',
-                text: data.openingText,
-                top: data.openingTextTop ?? 20,
-                left: data.openingTextLeft ?? 50,
-                color: data.openingTextColor ?? '#831843',
-                fontFamily: data.openingTextFontFamily ?? 'Playfair Display',
-                fontSize: data.openingTextFontSize ?? 3,
-                textAlign: data.openingTextAlign ?? 'center',
+                text: savedData.openingText,
+                top: savedData.openingTextTop ?? 20,
+                left: savedData.openingTextLeft ?? 50,
+                color: savedData.openingTextColor ?? '#831843',
+                fontFamily: savedData.openingTextFontFamily ?? 'Playfair Display',
+                fontSize: savedData.openingTextFontSize ?? 3,
+                textAlign: savedData.openingTextAlign ?? 'center',
               }];
             }
             finalSettings = merged;
@@ -239,20 +280,14 @@ export default function App() {
           }
 
           // Firestore does not accept undefined values, so we strip them
-      const cleanSettings = JSON.parse(JSON.stringify(settingsToSave));
-      console.log("Saving doc:", cardId);
-      const str = JSON.stringify(cleanSettings);
-      console.log("Size in memory:", str.length);
-      console.log("Large strings in doc:", Object.entries(cleanSettings).filter(([k,v]) => typeof v === 'string' && (v as string).length > 5000).map(([k,v]) => k));
-      console.log("Events:", cleanSettings.eventDetails?.map((e: any) => e.heading));
-      await setDoc(doc(db, 'wedding_invitations', cardId), cleanSettings);
+          const cleanSettings = JSON.parse(JSON.stringify(settingsToSave));
+          const targetCardId = sanitizeCardIdForSave(cardId);
+          await setDoc(doc(db, 'wedding_invitations', targetCardId), cleanSettings);
+          saveToLocalStorage(targetCardId, cleanSettings);
         } catch (error: any) {
           console.warn('Error saving settings to Firestore, falling back to local storage:', error.message);
-          try {
-            localStorage.setItem('wedding-ecard-settings', JSON.stringify(settings));
-          } catch(e) {
-            console.warn('Local storage quota exceeded, unable to save:', e);
-          }
+          const targetCardId = sanitizeCardIdForSave(cardId);
+          saveToLocalStorage(targetCardId, settings);
         }
       };
       saveSettings();
@@ -263,12 +298,9 @@ export default function App() {
 
   const handleSaveAndExit = async () => {
     setIsExiting(true);
+    const targetCardId = sanitizeCardIdForSave(cardId);
     // Force a save to local storage immediately when exiting admin panel
-    try {
-      localStorage.setItem('wedding-ecard-settings', JSON.stringify(settings));
-    } catch(e) {
-      console.warn('Error saving to local storage:', e);
-    }
+    saveToLocalStorage(targetCardId, settings);
     
     try {
           const prepareUrl = async (url: string, id: string) => {
@@ -279,7 +311,7 @@ export default function App() {
                if (uploadPromiseCache.has(url)) {
                  return await uploadPromiseCache.get(url)!;
                }
-               const promise = saveLargeFile(`${cardId}-${id}`, url).then(ecardUrl => {
+               const promise = saveLargeFile(`${targetCardId}-${id}`, url).then(ecardUrl => {
                  uploadCache.set(url, ecardUrl);
                  return ecardUrl;
                }).finally(() => {
@@ -309,7 +341,7 @@ export default function App() {
       // Firestore does not accept undefined values, so we strip them by serializing to JSON
       const cleanSettings = JSON.parse(JSON.stringify(settingsToSave));
 
-      const savePromise = setDoc(doc(db, 'wedding_invitations', cardId), cleanSettings);
+      const savePromise = setDoc(doc(db, 'wedding_invitations', targetCardId), cleanSettings);
       await Promise.race([
         savePromise,
         new Promise((_, reject) => setTimeout(() => reject(new Error("Database save timed out. Please check your internet connection.")), 15000))
