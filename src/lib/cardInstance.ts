@@ -12,17 +12,32 @@ export const OFFICIAL_SUBDOMAIN = 'zu6oj4k573mqstevuaebw5';
  * Returns true only if the running code is in the official template container
  */
 export function isOfficialWebsite(): boolean {
-  // 1. Check build-time injected environment variables
+  // 1. Explicit user choice in localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      if (localStorage.getItem('wedding_custom_card_id') === MASTER_CARD_ID) {
+        return true;
+      }
+    } catch (e) {}
+  }
+
+  // 2. Check build-time injected environment variables
   if (typeof __APPLET_ID__ !== 'undefined' && __APPLET_ID__ === OFFICIAL_APPLET_ID) {
     return true;
   }
   if (typeof __K_SERVICE__ !== 'undefined' && __K_SERVICE__.includes(OFFICIAL_SUBDOMAIN)) {
     return true;
   }
-  // 2. Check browser hostname
+
+  // 3. Check browser hostname
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname || '';
     if (hostname.includes(OFFICIAL_SUBDOMAIN)) {
+      return true;
+    }
+    // 4. Production hosting (Vercel, custom domain, or localhost) - not an AI Studio remix container
+    const isAiStudioContainer = hostname.startsWith('ais-dev-') || hostname.startsWith('ais-pre-');
+    if (!isAiStudioContainer) {
       return true;
     }
   }
@@ -105,14 +120,22 @@ export function determineInitialCardId(): string {
     } catch (e) {
       console.warn('Error reading URL search params:', e);
     }
+
+    // 2. Saved card ID preference from localStorage
+    try {
+      const savedCardId = localStorage.getItem('wedding_custom_card_id');
+      if (savedCardId && savedCardId.trim() !== '') {
+        return savedCardId.trim();
+      }
+    } catch (e) {}
   }
 
-  // 2. Official website always uses MASTER_CARD_ID ('remix-v1')
+  // 3. Official website / Vercel deployment always uses MASTER_CARD_ID ('remix-v1')
   if (isOfficialWebsite()) {
     return MASTER_CARD_ID;
   }
 
-  // 3. Remixes ALWAYS use their own isolated ID
+  // 4. Remixes ALWAYS use their own isolated ID
   return getRemixDefaultId();
 }
 

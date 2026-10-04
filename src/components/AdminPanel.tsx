@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { runDiagnostics } from '../lib/diagnostics';
-import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type, Copy, Check, ShieldCheck, GitFork, Sparkles } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
+import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type, Copy, Check, ShieldCheck, GitFork, Sparkles, RotateCcw, Database } from 'lucide-react';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { getShareableUrl, saveToLocalStorage, getFromLocalStorage, isMasterTemplate, isOfficialWebsite, sanitizeCardIdForSave, MASTER_CARD_ID } from '../lib/cardInstance';
-import { ECardSettings, TextElement } from '../types';
+import { ECardSettings, TextElement, defaultSettings } from '../types';
 import { OpeningPage } from './OpeningPage';
 import { HeroSection } from './HeroSection';
 
@@ -393,23 +393,95 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
     }
   };
 
+  const [isRestoringOfficial, setIsRestoringOfficial] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const handleSwitchToOfficialData = async () => {
+    setIsRestoringOfficial(true);
+    try {
+      // 1. Fetch fresh official master data from Firestore 'remix-v1' or fall back to defaultSettings
+      let officialData = defaultSettings;
+      try {
+        const snap = await getDoc(doc(db, 'wedding_invitations', MASTER_CARD_ID));
+        if (snap.exists()) {
+          officialData = { ...defaultSettings, ...snap.data() };
+        }
+      } catch (err) {
+        console.warn("Could not load from Firestore, using bundled defaultSettings:", err);
+      }
+
+      // 2. Set settings in state
+      setSettings(officialData);
+
+      // 3. Save to current cardId document in Firestore so this instance updates immediately
+      const cleanData = JSON.parse(JSON.stringify(officialData));
+      await setDoc(doc(db, 'wedding_invitations', cardId), cleanData);
+      saveToLocalStorage(cardId, cleanData);
+
+      // 4. Save preference in localStorage so subsequent page reloads stay on this official data
+      localStorage.setItem('wedding_custom_card_id', cardId);
+
+      setStatusMessage({
+        text: "🎉 Switched to Official Data! All Riyansh & Priyanshi details, couple names, backgrounds, music, and ceremony caricatures are now live.",
+        type: 'success'
+      });
+      setTimeout(() => setStatusMessage(null), 6000);
+    } catch (error: any) {
+      console.error("Error switching to official data:", error);
+      setStatusMessage({ text: `Failed to switch to official data: ${error.message}`, type: 'error' });
+      setTimeout(() => setStatusMessage(null), 6000);
+    } finally {
+      setIsRestoringOfficial(false);
+    }
+  };
+
+  const handleSwitchToOfficialDatabase = async () => {
+    try {
+      localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
+      setCardId(MASTER_CARD_ID);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.set('id', MASTER_CARD_ID);
+      window.history.pushState({}, '', newUrl.toString());
+
+      let officialData = defaultSettings;
+      try {
+        const snap = await getDoc(doc(db, 'wedding_invitations', MASTER_CARD_ID));
+        if (snap.exists()) {
+          officialData = { ...defaultSettings, ...snap.data() };
+        }
+      } catch (err) {}
+      setSettings(officialData);
+      saveToLocalStorage(MASTER_CARD_ID, officialData);
+
+      setStatusMessage({
+        text: `🎉 Connected to Official Master Database '${MASTER_CARD_ID}'! Your website now directly uses the official template.`,
+        type: 'success'
+      });
+      setTimeout(() => setStatusMessage(null), 6000);
+    } catch (error: any) {
+      setStatusMessage({ text: `Failed to connect to official database: ${error.message}`, type: 'error' });
+      setTimeout(() => setStatusMessage(null), 6000);
+    }
+  };
+
   const handleCardIdChange = () => {
     const newId = window.prompt(
-      "Switch to another Database Name:\n\nEnter the database ID you want to load or switch to:", 
+      "Switch to another Database Name:\n\nEnter the database ID you want to load or switch to (use 'remix-v1' for official master data):", 
       cardId
     );
     if (newId && newId.trim() !== "" && newId.trim() !== cardId) {
       let sanitized = newId.trim();
-      if (!isOfficialWebsite() && (sanitized === MASTER_CARD_ID || sanitized === 'official-wedding-card')) {
-        alert("This is a remix website. You cannot switch to or overwrite the official template. Please choose a custom remix name.");
-        return;
-      }
       saveToLocalStorage(cardId, settings);
+      localStorage.setItem('wedding_custom_card_id', sanitized);
       setCardId(sanitized);
       const newUrl = new URL(window.location.href);
       newUrl.searchParams.set('id', sanitized);
       window.history.pushState({}, '', newUrl.toString());
-      alert(`Switched to Database '${sanitized}'. The website will now load and save changes to this database.`);
+      setStatusMessage({
+        text: `Switched to Database '${sanitized}'. The website will now load and save changes to this database.`,
+        type: 'success'
+      });
+      setTimeout(() => setStatusMessage(null), 5000);
     }
   };
 
@@ -520,6 +592,51 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
               </>
             ) : (
               'Save & Exit'
+            )}
+          </button>
+        </div>
+
+        {/* Status Toast Notification */}
+        {statusMessage && (
+          <div className={`px-4 py-2.5 text-xs flex items-center gap-2 border-b ${
+            statusMessage.type === 'success' 
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+              : 'bg-rose-50 text-rose-900 border-rose-200'
+          }`}>
+            {statusMessage.type === 'success' ? (
+              <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <span className="text-rose-600 font-bold shrink-0">!</span>
+            )}
+            <span className="flex-1 leading-tight">{statusMessage.text}</span>
+          </div>
+        )}
+
+        {/* Quick Action: Switch to Official Data */}
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200/80 px-4 py-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-amber-950 truncate">Official Template</p>
+              <p className="text-[10px] text-amber-700 truncate">Riyansh &amp; Priyanshi (Template-3)</p>
+            </div>
+          </div>
+          <button
+            onClick={handleSwitchToOfficialData}
+            disabled={isRestoringOfficial}
+            className="text-[11px] font-medium px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded shadow-xs transition-colors whitespace-nowrap flex items-center gap-1 shrink-0 disabled:opacity-50"
+            title="Click to apply the official Riyansh & Priyanshi data, images, caricatures, and music to this website"
+          >
+            {isRestoringOfficial ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Restoring...</span>
+              </>
+            ) : (
+              <>
+                <RotateCcw className="w-3 h-3" />
+                <span>Switch to Official Data</span>
+              </>
             )}
           </button>
         </div>
@@ -1127,6 +1244,51 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                     : `This remix is running on dedicated database ID "${cardId}". All changes and files are saved separately and will never overlap with the official website.`
                   }
                 </p>
+              </div>
+
+              {/* Official Template & Hosting Sync Card */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-5 rounded-xl border border-amber-200/90 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+                    <div>
+                      <h4 className="text-sm font-semibold text-amber-950">Official Template (Riyansh &amp; Priyanshi)</h4>
+                      <p className="text-[11px] text-amber-800">Premium Template-3</p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded font-medium">
+                    Permanent
+                  </span>
+                </div>
+                <p className="text-xs text-amber-900/90 leading-relaxed">
+                  If your hosting deployment (such as Vercel) is showing earlier or outdated data, use this option to instantly apply and restore all official Riyansh &amp; Priyanshi details, couple names, backgrounds, music, and all 4 ceremony caricatures to this website.
+                </p>
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    onClick={handleSwitchToOfficialData}
+                    disabled={isRestoringOfficial}
+                    className="w-full px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                  >
+                    {isRestoringOfficial ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Restoring Official Data...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Switch to Official Data</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleSwitchToOfficialDatabase}
+                    className="w-full px-4 py-2 bg-white border border-amber-300 text-amber-900 hover:bg-amber-100/60 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Database className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Connect Active Database to '{MASTER_CARD_ID}'</span>
+                  </button>
+                </div>
               </div>
 
               {/* Active Database & Fork Section */}
