@@ -156,12 +156,6 @@ export function getFromLocalStorage(cardId: string): any | null {
   try {
     const scoped = localStorage.getItem(getStorageKey(cardId));
     if (scoped) return JSON.parse(scoped);
-
-    // Fallback only for master template
-    if (isOfficialWebsite() && cardId === MASTER_CARD_ID) {
-      const fallback = localStorage.getItem('wedding-ecard-settings');
-      if (fallback) return JSON.parse(fallback);
-    }
   } catch (e) {
     console.warn(`Error reading localStorage for ${cardId}:`, e);
   }
