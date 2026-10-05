@@ -466,7 +466,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
 
   const handleCardIdChange = () => {
     const newId = window.prompt(
-      "Switch to another Database Name:\n\nEnter the database ID you want to load or switch to (use 'remix-v1' for official master data):", 
+      "Switch to another Database Name:\n\nEnter the database ID you want to load or switch to (use 'official-wedding-card' for official master data):", 
       cardId
     );
     if (newId && newId.trim() !== "" && newId.trim() !== cardId) {

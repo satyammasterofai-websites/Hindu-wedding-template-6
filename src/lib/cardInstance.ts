@@ -4,7 +4,7 @@
  * Guarantees that remixed websites in AI Studio never overlap or overwrite data from the official website.
  */
 
-export const MASTER_CARD_ID = 'remix-v1';
+export const MASTER_CARD_ID = 'official-wedding-card';
 export const OFFICIAL_APPLET_ID = 'a96df12c-9a53-491f-9834-0d2693a3ab95';
 export const OFFICIAL_SUBDOMAIN = 'zu6oj4k573mqstevuaebw5';
 
@@ -15,7 +15,9 @@ export function isOfficialWebsite(): boolean {
   // 1. Explicit user choice in localStorage
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      if (localStorage.getItem('wedding_custom_card_id') === MASTER_CARD_ID) {
+      const stored = localStorage.getItem('wedding_custom_card_id');
+      if (stored === MASTER_CARD_ID || stored === 'remix-v1') {
+        localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
         return true;
       }
     } catch (e) {}
@@ -111,8 +113,12 @@ export function determineInitialCardId(): string {
       const queryId = params.get('id') || params.get('remix') || params.get('card');
       if (queryId && queryId.trim() !== '') {
         const trimmed = queryId.trim();
+        // If legacy remix-v1 is requested by URL, migrate to official master
+        if (trimmed === 'remix-v1') {
+          return MASTER_CARD_ID;
+        }
         // If a remix tries to access master card directly, prevent it from overwriting master
-        if (!isOfficialWebsite() && (trimmed === MASTER_CARD_ID || trimmed === 'official-wedding-card')) {
+        if (!isOfficialWebsite() && (trimmed === MASTER_CARD_ID || trimmed === 'official-wedding-card' || trimmed === 'remix-v1')) {
           return getRemixDefaultId();
         }
         return trimmed;
@@ -125,12 +131,18 @@ export function determineInitialCardId(): string {
     try {
       const savedCardId = localStorage.getItem('wedding_custom_card_id');
       if (savedCardId && savedCardId.trim() !== '') {
-        return savedCardId.trim();
+        const trimmed = savedCardId.trim();
+        // Automatically migrate legacy 'remix-v1' to 'official-wedding-card'
+        if (trimmed === 'remix-v1') {
+          localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
+          return MASTER_CARD_ID;
+        }
+        return trimmed;
       }
     } catch (e) {}
   }
 
-  // 3. Official website / Vercel deployment always uses MASTER_CARD_ID ('remix-v1')
+  // 3. Official website / Vercel deployment always uses MASTER_CARD_ID ('official-wedding-card')
   if (isOfficialWebsite()) {
     return MASTER_CARD_ID;
   }
@@ -144,7 +156,7 @@ export function determineInitialCardId(): string {
  */
 export function sanitizeCardIdForSave(targetCardId: string): string {
   if (!isOfficialWebsite()) {
-    if (targetCardId === MASTER_CARD_ID || targetCardId === 'official-wedding-card') {
+    if (targetCardId === MASTER_CARD_ID || targetCardId === 'official-wedding-card' || targetCardId === 'remix-v1') {
       const safeId = getRemixDefaultId();
       console.warn(`[DATA ISOLATION] Blocked remix from writing to official template '${targetCardId}'. Redirected to '${safeId}'.`);
       return safeId;

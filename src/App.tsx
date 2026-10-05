@@ -43,6 +43,13 @@ export default function App() {
   // Load settings from Firestore or LocalStorage fallback
   useEffect(() => {
     const loadSettings = async () => {
+      // Auto-migrate any legacy 'remix-v1' cardId to MASTER_CARD_ID
+      if (cardId === 'remix-v1') {
+        localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
+        setCardId(MASTER_CARD_ID);
+        return;
+      }
+
       setLoadingProgress(10);
       let finalSettings = defaultSettings;
       let isNewRemixDoc = false;
