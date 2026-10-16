@@ -3,7 +3,7 @@ import { runDiagnostics } from '../lib/diagnostics';
 import { Settings2, Image as ImageIcon, LayoutTemplate, Link as LinkIcon, Upload, Loader2, Type, Copy, Check, ShieldCheck, GitFork, Sparkles, RotateCcw, Database } from 'lucide-react';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { getShareableUrl, saveToLocalStorage, getFromLocalStorage, isMasterTemplate, isOfficialWebsite, sanitizeCardIdForSave, MASTER_CARD_ID } from '../lib/cardInstance';
+import { getShareableUrl, saveToLocalStorage, getFromLocalStorage, isMasterTemplate, isOfficialWebsite, sanitizeCardIdForSave, MASTER_CARD_ID, REMIX_DEFAULT_CARD_ID, getWebsiteName, OFFICIAL_WEBSITE_NAME, REMIX_WEBSITE_NAME } from '../lib/cardInstance';
 import { ECardSettings, TextElement, defaultSettings } from '../types';
 import { OpeningPage } from './OpeningPage';
 import { HeroSection } from './HeroSection';
@@ -414,15 +414,18 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
       setSettings(officialData);
 
       // 3. Save to current cardId document in Firestore so this instance updates immediately
+      const targetCardId = sanitizeCardIdForSave(cardId);
       const cleanData = JSON.parse(JSON.stringify(officialData));
-      await setDoc(doc(db, 'wedding_invitations', cardId), cleanData);
-      saveToLocalStorage(cardId, cleanData);
+      await setDoc(doc(db, 'wedding_invitations', targetCardId), cleanData);
+      saveToLocalStorage(targetCardId, cleanData);
 
       // 4. Save preference in localStorage so subsequent page reloads stay on this official data
-      localStorage.setItem('wedding_custom_card_id', cardId);
+      localStorage.setItem('wedding_custom_card_id', targetCardId);
 
       setStatusMessage({
-        text: "🎉 Switched to Official Data! All Riyansh & Priyanshi details, couple names, backgrounds, music, and ceremony caricatures are now live.",
+        text: isOfficialWebsite()
+          ? "🎉 Switched to Official Data! All Riyansh & Priyanshi details, couple names, backgrounds, music, and ceremony caricatures are now live."
+          : `🎉 Cloned Official Data into '${REMIX_WEBSITE_NAME}'! All data is saved to isolated database '${targetCardId}'.`,
         type: 'success'
       });
       setTimeout(() => setStatusMessage(null), 6000);
@@ -436,6 +439,15 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
   };
 
   const handleSwitchToOfficialDatabase = async () => {
+    if (!isOfficialWebsite()) {
+      setStatusMessage({
+        text: `🛡️ Database isolated! This remix is running as '${REMIX_WEBSITE_NAME}'. All changes save to dedicated database '${cardId}' and cannot alter the official master template.`,
+        type: 'error'
+      });
+      setTimeout(() => setStatusMessage(null), 6000);
+      return;
+    }
+
     try {
       localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
       setCardId(MASTER_CARD_ID);
@@ -617,15 +629,19 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-amber-950 truncate">Official Template</p>
-              <p className="text-[10px] text-amber-700 truncate">Riyansh &amp; Priyanshi (Template-3)</p>
+              <p className="text-[11px] font-semibold text-amber-950 truncate">
+                {isOfficialWebsite() ? 'Official Master Template' : 'Remix Project'}
+              </p>
+              <p className="text-[10px] text-amber-700 truncate">
+                {isOfficialWebsite() ? 'Riyansh & Priyanshi (Template-3)' : `${REMIX_WEBSITE_NAME} (Isolated DB)`}
+              </p>
             </div>
           </div>
           <button
             onClick={handleSwitchToOfficialData}
             disabled={isRestoringOfficial}
             className="text-[11px] font-medium px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded shadow-xs transition-colors whitespace-nowrap flex items-center gap-1 shrink-0 disabled:opacity-50"
-            title="Click to apply the official Riyansh & Priyanshi data, images, caricatures, and music to this website"
+            title={isOfficialWebsite() ? "Restore official Riyansh & Priyanshi data" : `Clone official template into ${REMIX_WEBSITE_NAME}`}
           >
             {isRestoringOfficial ? (
               <>
@@ -635,7 +651,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
             ) : (
               <>
                 <RotateCcw className="w-3 h-3" />
-                <span>Switch to Official Data</span>
+                <span>{isOfficialWebsite() ? 'Switch to Official Data' : 'Clone Template Data'}</span>
               </>
             )}
           </button>
@@ -1241,7 +1257,7 @@ export function AdminPanel({ settings, setSettings, onExit, isExiting, cardId, s
                 <p className="text-xs text-emerald-800 leading-relaxed">
                   {isOfficialWebsite() 
                     ? `This is the official master website running on database ID "${cardId}". All initial wedding data is safely recovered and protected. Any remix created from this site will save to its own database and can never overwrite this website.`
-                    : `This remix is running on dedicated database ID "${cardId}". All changes and files are saved separately and will never overlap with the official website.`
+                    : `This remix is running on dedicated database ID "${cardId}" for '${REMIX_WEBSITE_NAME}'. All changes and files are saved in separate fields/documents and will never overlap with the official website.`
                   }
                 </p>
               </div>

@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { AnimatePresence } from 'motion/react';
-import { Settings, Loader2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Settings, Loader2, Sparkles, Pencil } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { ECardSettings, defaultSettings } from './types';
 import { saveLargeFile, loadLargeFile } from './lib/storage';
-import { determineInitialCardId, getFromLocalStorage, saveToLocalStorage, sanitizeCardIdForSave, MASTER_CARD_ID } from './lib/cardInstance';
+import { determineInitialCardId, getFromLocalStorage, saveToLocalStorage, sanitizeCardIdForSave, MASTER_CARD_ID, REMIX_DEFAULT_CARD_ID, isOfficialWebsite, getWebsiteName } from './lib/cardInstance';
 import { OpeningPage } from './components/OpeningPage';
 import { HeroSection } from './components/HeroSection';
 import { AdminPanel } from './components/AdminPanel';
 import { FallingEmojis } from './components/FallingEmojis';
-
 import { Butterflies } from './components/Butterflies';
+import { EditInvitationModal } from './components/EditInvitationModal';
 
 type ViewState = 'opening' | 'hero' | 'admin';
 
@@ -26,6 +26,7 @@ export default function App() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [isExiting, setIsExiting] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -33,6 +34,44 @@ export default function App() {
   const [cardId, setCardId] = useState<string>(() => {
     return determineInitialCardId();
   });
+
+  const handlePauseMusic = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+  };
+
+  // Automatically pause background music when user exits, switches tabs, or leaves page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden && audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+    const handlePageHide = () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('blur', handleVisibilityChange);
+    window.addEventListener('beforeunload', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('blur', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handlePageHide);
+    };
+  }, []);
+
+  // Dynamically set title and meta tags based on official template vs remix
+  useEffect(() => {
+    const siteName = getWebsiteName();
+    document.title = siteName;
+    const ogTitle = document.getElementById('og-title-meta');
+    if (ogTitle) ogTitle.setAttribute('content', siteName);
+  }, []);
 
   // Clear file caches whenever database/card ID changes to prevent cross-contamination
   useEffect(() => {
@@ -43,10 +82,11 @@ export default function App() {
   // Load settings from Firestore or LocalStorage fallback
   useEffect(() => {
     const loadSettings = async () => {
-      // Auto-migrate any legacy 'remix-v1' cardId to MASTER_CARD_ID
+      // Auto-migrate any legacy 'remix-v1' cardId
       if (cardId === 'remix-v1') {
-        localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
-        setCardId(MASTER_CARD_ID);
+        const target = isOfficialWebsite() ? MASTER_CARD_ID : REMIX_DEFAULT_CARD_ID;
+        localStorage.setItem('wedding_custom_card_id', target);
+        setCardId(target);
         return;
       }
 
@@ -464,11 +504,44 @@ export default function App() {
                 key="hero" 
                 settings={settings}
                 onOpenAdmin={handleOpenAdmin}
+                onPauseMusic={handlePauseMusic}
               />
             )}
           </AnimatePresence>
         </>
       )}
+
+      {/* Floating "Edit Your Invitation" Button - Visible ONLY on the website (hero view), not on opening page */}
+      {currentView === 'hero' && (
+        <motion.button
+          initial={{ scale: 0, opacity: 0, y: 15 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0, opacity: 0, y: 15 }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            setShowEditModal(true);
+          }}
+          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[80] flex items-center gap-2 pl-2.5 pr-3.5 py-1.5 sm:pl-3 sm:pr-4 sm:py-2 bg-gradient-to-r from-[#7a103c] via-[#8D2342] to-[#7a103c] text-[#FAF5EA] rounded-full shadow-[0_4px_18px_rgba(122,16,60,0.5)] border border-[#C9A15A] ring-1 ring-[#C9A15A]/30 backdrop-blur-md hover:shadow-[0_6px_24px_rgba(122,16,60,0.7)] hover:border-[#ffd978] transition-all cursor-pointer group"
+          aria-label="Edit Your Invitation"
+        >
+          <div className="w-5 h-5 rounded-full bg-[#C9A15A]/25 flex items-center justify-center text-[#C9A15A] shrink-0 border border-[#C9A15A]/50 group-hover:bg-[#C9A15A]/35 transition-colors">
+            <Pencil className="w-2.5 h-2.5 stroke-[2.5]" />
+          </div>
+          <span className="font-serif tracking-wide font-semibold text-xs sm:text-[13px] text-[#FAF5EA] drop-shadow-xs whitespace-nowrap">
+            Edit Your Invitation
+          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#C9A15A] animate-ping shrink-0" />
+        </motion.button>
+      )}
+
+      {/* Edit Invitation Form Modal */}
+      <EditInvitationModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        onPauseMusic={handlePauseMusic}
+        currentTemplateUrl={typeof window !== 'undefined' ? window.location.href : ''}
+      />
 
       {showPasswordModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">

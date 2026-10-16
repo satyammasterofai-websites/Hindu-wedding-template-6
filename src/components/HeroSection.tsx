@@ -6,11 +6,12 @@ import { MoveDown, MapPin, Settings, Instagram, MessageCircle } from 'lucide-rea
 
 interface Props {
   onOpenAdmin?: () => void;
+  onPauseMusic?: () => void;
   settings: ECardSettings;
   key?: string;
 }
 
-export function HeroSection({ settings, onOpenAdmin }: Props) {
+export function HeroSection({ settings, onOpenAdmin, onPauseMusic }: Props) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 1.05 }}
@@ -119,42 +120,54 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
                   <div className="absolute inset-0 bg-black/30 sm:bg-gradient-to-r sm:from-black/60 sm:via-black/40 sm:to-transparent pointer-events-none"></div>
                   
                   {/* Text Content */}
-                  <div className="absolute top-0 h-[60%] sm:h-auto left-0 right-0 flex flex-col justify-center items-center text-center px-6 z-10 sm:bottom-0 sm:w-1/2 sm:items-start sm:text-left sm:pl-12 md:pl-16 pt-6 sm:pt-0">
-                    <h3 className="text-[42px] leading-tight md:text-6xl font-['Great_Vibes',cursive] text-[#FAF5EA] mb-2 drop-shadow-md">
+                  <div className="absolute top-0 left-0 right-0 z-10 flex flex-col items-center text-center px-4 sm:px-6 pt-5 pb-2 sm:pt-0 sm:bottom-0 sm:top-0 sm:w-1/2 sm:items-start sm:text-left sm:justify-center sm:pl-12 md:pl-16">
+                    <h3 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-['Great_Vibes',cursive] text-[#FAF5EA] leading-tight mb-1 sm:mb-2 drop-shadow-md px-2 max-w-full">
                       {event.heading}
                     </h3>
                     {event.showDescription !== false && event.description && (
-                      <p className="font-serif italic text-[#FAF5EA]/90 mb-3 sm:mb-6 text-[13px] md:text-lg leading-relaxed drop-shadow md:max-w-md">
+                      <p className="font-serif italic text-[#FAF5EA]/90 mb-2 sm:mb-4 text-xs sm:text-sm md:text-base leading-relaxed drop-shadow max-w-[280px] sm:max-w-md line-clamp-2 sm:line-clamp-none">
                         "{event.description}"
                       </p>
                     )}
                     {(event.showDate !== false || event.showTime !== false || event.showVenue !== false) && (
-                       <div className="w-12 h-px bg-[#FAF5EA]/50 mb-4 md:ml-0" />
+                       <div className="w-10 sm:w-12 h-px bg-[#FAF5EA]/50 mb-2 sm:mb-3 md:ml-0" />
                     )}
                     
                     {event.showDate !== false && event.date && (
-                      <div className="mb-3 w-full">
-                         <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>DATE</p>
+                      <div className="mb-1.5 sm:mb-2.5 w-full">
+                         <div className="inline-block mb-0.5">
+                           <p className="font-serif tracking-[0.2em] uppercase text-[9px] sm:text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>DATE</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.date}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs sm:text-sm md:text-base drop-shadow font-medium">{event.date}</p>
                       </div>
                     )}
                     {event.showTime !== false && event.time && (
-                      <div className="mb-3 w-full">
-                         <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>TIME</p>
+                      <div className="mb-1.5 sm:mb-2.5 w-full">
+                         <div className="inline-block mb-0.5">
+                           <p className="font-serif tracking-[0.2em] uppercase text-[9px] sm:text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>TIME</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.time}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs sm:text-sm md:text-base drop-shadow font-medium">{event.time}</p>
                       </div>
                     )}
                     {event.showVenue !== false && event.venue && (
-                      <div className="mb-3 w-full">
-                         <div className="inline-block mb-1">
-                           <p className="font-serif tracking-[0.2em] uppercase text-[10px] md:text-sm font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>VENUE</p>
+                      <div className="mb-1.5 sm:mb-2.5 w-full">
+                         <div className="inline-block mb-0.5">
+                           <p className="font-serif tracking-[0.2em] uppercase text-[9px] sm:text-[10px] md:text-xs font-bold drop-shadow-md" style={{ color: event.detailsColor || '#C9A15A' }}>VENUE</p>
                          </div>
-                         <p className="font-serif tracking-wide text-[#FAF5EA] text-[13px] md:text-base drop-shadow font-medium">{event.venue}</p>
+                         <p className="font-serif tracking-wide text-[#FAF5EA] text-xs sm:text-sm md:text-base drop-shadow font-medium">{event.venue}</p>
                       </div>
+                    )}
+                    {event.directionUrl && (
+                      <a
+                        href={event.directionUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => onPauseMusic?.()}
+                        className="mt-1.5 inline-flex items-center gap-1.5 px-3.5 py-1 bg-transparent hover:bg-white/10 border border-[#FAF5EA]/60 hover:border-[#FAF5EA] text-[#FAF5EA] rounded-full text-[10px] sm:text-xs font-serif tracking-widest uppercase transition-all shadow-none hover:scale-105 backdrop-blur-[1px]"
+                      >
+                        <MapPin className="w-3 h-3 text-[#C9A15A]" />
+                        <span>Get Direction</span>
+                      </a>
                     )}
                   </div>
 
@@ -285,6 +298,7 @@ export function HeroSection({ settings, onOpenAdmin }: Props) {
               href={"https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(settings.mapAddress || 'Royal Garden, Jaipur, Rajasthan')}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => onPauseMusic?.()}
               className="px-10 py-4 bg-[#8D2342] text-[#FAF5EA] rounded-full font-serif tracking-[0.15em] shadow-[0_8px_25px_-8px_rgba(141,35,66,0.6)] hover:shadow-[0_8px_30px_-5px_rgba(141,35,66,0.5)] hover:scale-[1.02] transition-all text-[11px] sm:text-xs uppercase font-bold flex items-center gap-3 border border-[#C9A15A]/20"
             >
               <MapPin className="w-4 h-4" />

@@ -7,43 +7,44 @@
 export const MASTER_CARD_ID = 'official-wedding-card';
 export const OFFICIAL_APPLET_ID = 'a96df12c-9a53-491f-9834-0d2693a3ab95';
 export const OFFICIAL_SUBDOMAIN = 'zu6oj4k573mqstevuaebw5';
+export const OFFICIAL_WEBSITE_NAME = 'Riyansh & Priyanshi Premium Template-3';
+
+export const REMIX_DEFAULT_CARD_ID = 'nitin-sir-client-2';
+export const REMIX_WEBSITE_NAME = 'Nitin sir client -2';
 
 /**
  * Returns true only if the running code is in the official template container
  */
 export function isOfficialWebsite(): boolean {
-  // 1. Explicit user choice in localStorage
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const stored = localStorage.getItem('wedding_custom_card_id');
-      if (stored === MASTER_CARD_ID || stored === 'remix-v1') {
-        localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
-        return true;
-      }
-    } catch (e) {}
+  // 1. Check build-time injected environment variables
+  if (typeof __APPLET_ID__ !== 'undefined' && __APPLET_ID__) {
+    return __APPLET_ID__ === OFFICIAL_APPLET_ID;
+  }
+  if (typeof __K_SERVICE__ !== 'undefined' && __K_SERVICE__) {
+    return __K_SERVICE__.includes(OFFICIAL_SUBDOMAIN);
   }
 
-  // 2. Check build-time injected environment variables
-  if (typeof __APPLET_ID__ !== 'undefined' && __APPLET_ID__ === OFFICIAL_APPLET_ID) {
-    return true;
-  }
-  if (typeof __K_SERVICE__ !== 'undefined' && __K_SERVICE__.includes(OFFICIAL_SUBDOMAIN)) {
-    return true;
-  }
-
-  // 3. Check browser hostname
+  // 2. Check browser hostname
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname || '';
     if (hostname.includes(OFFICIAL_SUBDOMAIN)) {
       return true;
     }
-    // 4. Production hosting (Vercel, custom domain, or localhost) - not an AI Studio remix container
-    const isAiStudioContainer = hostname.startsWith('ais-dev-') || hostname.startsWith('ais-pre-');
-    if (!isAiStudioContainer) {
-      return true;
+    // Any other AI Studio container (dev or preview) is definitively a remix!
+    if (hostname.startsWith('ais-dev-') || hostname.startsWith('ais-pre-')) {
+      return false;
     }
+    // Production custom domain or Vercel
+    return true;
   }
   return false;
+}
+
+/**
+ * Returns the website name based on whether it is running on the official template or a remix
+ */
+export function getWebsiteName(): string {
+  return isOfficialWebsite() ? OFFICIAL_WEBSITE_NAME : REMIX_WEBSITE_NAME;
 }
 
 /**
@@ -61,65 +62,33 @@ export function detectAppletSubdomain(): string | null {
  * Generates or retrieves a unique isolated database ID for a remix container
  */
 export function getRemixDefaultId(): string {
-  // If K_SERVICE is available from Vite define
-  if (typeof __K_SERVICE__ !== 'undefined' && __K_SERVICE__ && !__K_SERVICE__.includes(OFFICIAL_SUBDOMAIN)) {
-    const cleanService = __K_SERVICE__.replace(/^ais-(dev|pre)-/, '').split('-')[0];
-    if (cleanService) {
-      return `remix-${cleanService}`;
-    }
-  }
-
-  // If APPLET_ID is available from Vite define
-  if (typeof __APPLET_ID__ !== 'undefined' && __APPLET_ID__ && __APPLET_ID__ !== OFFICIAL_APPLET_ID) {
-    return `remix-${__APPLET_ID__.substring(0, 10)}`;
-  }
-
-  // If subdomain is present in hostname and not official
-  const subdomain = detectAppletSubdomain();
-  if (subdomain && subdomain !== OFFICIAL_SUBDOMAIN.toLowerCase()) {
-    return `remix-${subdomain}`;
-  }
-
-  // Check persistent custom id in localStorage
-  if (typeof window !== 'undefined' && window.localStorage) {
-    try {
-      const stored = localStorage.getItem('wedding_custom_card_id');
-      if (stored && stored.trim() !== '' && stored !== MASTER_CARD_ID && stored !== 'official-wedding-card') {
-        return stored.trim();
-      }
-      const newRemixId = `remix-${Math.random().toString(36).substring(2, 9)}`;
-      localStorage.setItem('wedding_custom_card_id', newRemixId);
-      return newRemixId;
-    } catch (e) {
-      // Ignore
-    }
-  }
-
-  return `remix-instance-${Date.now().toString(36)}`;
+  // Dedicated database document ID for the upcoming remix
+  return REMIX_DEFAULT_CARD_ID;
 }
 
 /**
  * Determines the appropriate card/database ID for the current instance.
- * Follows strict priority:
- * 1. URL search param ?id=... (or ?remix=... or ?card=...)
- * 2. If running on the official website: returns MASTER_CARD_ID ('remix-v1')
- * 3. If running on a remix: ALWAYS returns an isolated remix ID (never MASTER_CARD_ID)
+ * Follows strict isolation:
+ * 1. Official website: ALWAYS returns MASTER_CARD_ID ('official-wedding-card')
+ * 2. Remix website: ALWAYS returns isolated REMIX_DEFAULT_CARD_ID ('nitin-sir-client-2')
  */
 export function determineInitialCardId(): string {
+  // Official website always uses MASTER_CARD_ID ('official-wedding-card')
+  if (isOfficialWebsite()) {
+    return MASTER_CARD_ID;
+  }
+
+  // When running on a remix website:
   if (typeof window !== 'undefined') {
-    // 1. Explicit URL parameter
+    // 1. Explicit URL parameter (if user provides custom ID)
     try {
       const params = new URLSearchParams(window.location.search);
       const queryId = params.get('id') || params.get('remix') || params.get('card');
       if (queryId && queryId.trim() !== '') {
         const trimmed = queryId.trim();
-        // If legacy remix-v1 is requested by URL, migrate to official master
-        if (trimmed === 'remix-v1') {
-          return MASTER_CARD_ID;
-        }
-        // If a remix tries to access master card directly, prevent it from overwriting master
-        if (!isOfficialWebsite() && (trimmed === MASTER_CARD_ID || trimmed === 'official-wedding-card' || trimmed === 'remix-v1')) {
-          return getRemixDefaultId();
+        // A remix is strictly forbidden from accessing or overwriting the master card
+        if (trimmed === MASTER_CARD_ID || trimmed === 'official-wedding-card' || trimmed === 'remix-v1') {
+          return REMIX_DEFAULT_CARD_ID;
         }
         return trimmed;
       }
@@ -132,23 +101,16 @@ export function determineInitialCardId(): string {
       const savedCardId = localStorage.getItem('wedding_custom_card_id');
       if (savedCardId && savedCardId.trim() !== '') {
         const trimmed = savedCardId.trim();
-        // Automatically migrate legacy 'remix-v1' to 'official-wedding-card'
-        if (trimmed === 'remix-v1') {
-          localStorage.setItem('wedding_custom_card_id', MASTER_CARD_ID);
-          return MASTER_CARD_ID;
+        // Disallow remix from reading master card ID from legacy storage
+        if (trimmed !== MASTER_CARD_ID && trimmed !== 'official-wedding-card' && trimmed !== 'remix-v1') {
+          return trimmed;
         }
-        return trimmed;
       }
     } catch (e) {}
   }
 
-  // 3. Official website / Vercel deployment always uses MASTER_CARD_ID ('official-wedding-card')
-  if (isOfficialWebsite()) {
-    return MASTER_CARD_ID;
-  }
-
-  // 4. Remixes ALWAYS use their own isolated ID
-  return getRemixDefaultId();
+  // Default isolated database document for the upcoming remix
+  return REMIX_DEFAULT_CARD_ID;
 }
 
 /**
@@ -157,9 +119,8 @@ export function determineInitialCardId(): string {
 export function sanitizeCardIdForSave(targetCardId: string): string {
   if (!isOfficialWebsite()) {
     if (targetCardId === MASTER_CARD_ID || targetCardId === 'official-wedding-card' || targetCardId === 'remix-v1') {
-      const safeId = getRemixDefaultId();
-      console.warn(`[DATA ISOLATION] Blocked remix from writing to official template '${targetCardId}'. Redirected to '${safeId}'.`);
-      return safeId;
+      console.warn(`[DATA ISOLATION] Blocked remix from writing to official template '${targetCardId}'. Redirected to '${REMIX_DEFAULT_CARD_ID}'.`);
+      return REMIX_DEFAULT_CARD_ID;
     }
   }
   return targetCardId;
