@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ExternalLink,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Lightbulb
 } from 'lucide-react';
 
 interface CeremonyEvent {
@@ -143,6 +144,9 @@ export function EditInvitationModal({ isOpen, onClose, onPauseMusic, currentTemp
   // Background Music (Optional)
   const [musicUrl, setMusicUrl] = useState('');
 
+  // Specific Details or New Feature Requests (Optional)
+  const [customRequests, setCustomRequests] = useState('');
+
   // Accordion Section States
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     couple: true,
@@ -151,6 +155,7 @@ export function EditInvitationModal({ isOpen, onClose, onPauseMusic, currentTemp
     family: false,
     message: false,
     music: false,
+    requests: false,
   });
 
   // Validation Errors
@@ -284,6 +289,10 @@ export function EditInvitationModal({ isOpen, onClose, onPauseMusic, currentTemp
     
     if (musicUrl.trim()) {
       msg += `\n🎵 *6. BACKGROUND MUSIC PREFERENCE*\n• ${musicUrl.trim()}\n`;
+    }
+
+    if (customRequests.trim()) {
+      msg += `\n💡 *7. SPECIFIC DETAILS & FEATURE REQUESTS*\n${customRequests.trim()}\n`;
     }
     
     msg += `\n------------------------------\n`;
@@ -912,6 +921,66 @@ export function EditInvitationModal({ isOpen, onClose, onPauseMusic, currentTemp
                   />
                   <p className="text-[11px] text-stone-500">
                     We will configure your preferred instrumental or song as the automatic background audio for your e-card.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Section 7: Specific Details & New Features (Optional) */}
+            <div className="border border-[#C9A15A]/30 rounded-2xl bg-white/70 overflow-hidden shadow-xs">
+              <button
+                type="button"
+                onClick={() => toggleSection('requests')}
+                className="w-full px-5 py-4 flex items-center justify-between text-left bg-gradient-to-r from-stone-50 to-[#FAF5EA] hover:bg-[#FAF5EA] transition-colors"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Lightbulb className="w-4 h-4 text-[#8D2342]" />
+                  <span className="font-serif font-bold text-base text-[#8D2342]">
+                    7. Specific Details / New Features to Add <span className="text-xs text-stone-500 font-normal font-sans">(Optional)</span>
+                  </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-stone-500 transition-transform duration-200 ${openSections.requests ? 'rotate-180' : ''}`} />
+              </button>
+
+              {openSections.requests && (
+                <div className="p-5 space-y-3.5 border-t border-[#C9A15A]/20">
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    Have specific instructions, color themes, or extra features in mind? Specify them below and click quick tags if helpful:
+                  </p>
+
+                  {/* Quick suggestion tags */}
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {[
+                      '👗 Dress Code / Theme',
+                      '🏷️ Wedding Hashtag',
+                      '📸 Photo Gallery Section',
+                      '🎥 Live Streaming Link',
+                      '💌 RSVP Form',
+                      '⏳ Countdown Timer',
+                      '🏨 Hotel & Stay Info'
+                    ].map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => {
+                          setCustomRequests(prev => prev ? `${prev}\n• ${chip}: ` : `• ${chip}: `);
+                        }}
+                        className="text-[11px] px-2.5 py-1 bg-stone-100 hover:bg-amber-100/70 text-stone-700 hover:text-amber-950 rounded-lg transition-colors border border-stone-200/80 cursor-pointer"
+                      >
+                        + {chip}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    rows={4}
+                    value={customRequests}
+                    onChange={(e) => setCustomRequests(e.target.value)}
+                    placeholder="e.g. Please add dress code: Traditional Yellow for Haldi, Pastel for Wedding. Please add our wedding hashtag #RiyanshWedsPriyanshi. Please include a live streaming button for relatives who cannot attend."
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-stone-200 bg-white text-sm focus:ring-2 focus:ring-[#8D2342] focus:outline-none"
+                  />
+                  <p className="text-[11px] text-stone-500">
+                    Our design and engineering team will review these custom requirements and incorporate them into your personalized invitation website.
                   </p>
                 </div>
               )}
